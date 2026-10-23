@@ -96,6 +96,9 @@ window.addEventListener("keydown", (e) => {
     } else if ((e.metaKey || e.ctrlKey) && e.key === "Backspace") {
       state.removeParagraph();
       e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") {
+      state.duplicateMeasure();
+      e.preventDefault();
     }
     return;
   }

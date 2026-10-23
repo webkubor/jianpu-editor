@@ -11,6 +11,9 @@ import {
   createExtend,
   createNote,
   createParagraph,
+  BAR,
+  DOUBLE_BAR,
+  EXTEND,
   isPitchable,
 } from "../core/model.ts";
 import type { NoteDigit, Notation, Paragraph, Score } from "../core/model.ts";
@@ -238,6 +241,58 @@ export class EditorState {
     items.splice(this.itemIdx, 0, bar);
     this.itemIdx += 1;
     this.replaceParagraphNotations(items);
+  }
+
+  /** 复制当前小节（光标左侧最近小节线之后到下一小节线/段尾）插到该小节末尾；⌘D 高频操作。
+   * 歌词随发声符号复制；光标跳到副本末尾方便接着改音。 */
+  duplicateMeasure(): void {
+    const items = this.paragraph.notations;
+    if (items.length === 0) {
+      this.lastNotice = "复制小节：当前段是空的";
+      this.emit();
+      return;
+    }
+    // 小节边界：最近 | 在光标前（不含 itemIdx-1 本身若是 |），下一 | 在光标处或之后
+    const cursor = this.itemIdx;
+    let start = 0;
+    for (let i = cursor - 1; i >= 0; i--) {
+      if (items[i].note === BAR || items[i].note === DOUBLE_BAR) { start = i + 1; break; }
+    }
+    let end = items.length;
+    for (let i = cursor; i < items.length; i++) {
+      if (items[i].note === BAR || items[i].note === DOUBLE_BAR) { end = i; break; }
+    }
+    if (end <= start) {
+      this.lastNotice = "复制小节：光标处没有可复制的内容";
+      this.emit();
+      return;
+    }
+    this.snapshot();
+    // 深拷贝段符号并重发 key；歌词按发声序重排
+    const source = items.slice(start, end).map(cloneNotation);
+    const keyMap = new Map(source.map((n) => [n, `n_${Math.random().toString(36).slice(2, 10)}`]));
+    for (const n of source) n.key = keyMap.get(n)!;
+    // 歌词重排：原段发声序 → 副本发声序同词
+    const soundingOf = (list: typeof items) => list.filter((n) => isPitchable(n) || n.note === EXTEND);
+    const para = this.paragraph;
+    const lyrics = [...para.lyrics];
+    const dupSounding = soundingOf(source);
+    // 在副本插入位置后追加对应歌词
+    const insertAt = soundingOf(items.slice(0, end)).length;
+    const newLyrics = [...lyrics];
+    dupSounding.forEach((_, i) => {
+      newLyrics[insertAt + i] = lyrics[(soundingOf(items.slice(0, start)).length) + i] ?? "";
+    });
+    const notations = [...items];
+    // 副本自带前导小节线（分隔原小节）；原 end 处若已有 | 则吸收为副本右界（防双线）
+    if (end < notations.length && (notations[end].note === BAR || notations[end].note === DOUBLE_BAR)) {
+      notations.splice(end, 1);
+    }
+    notations.splice(end, 0, createBar(), ...source);
+    this.replaceParagraphNotations(notations);
+    this.scoreValue = { ...this.scoreValue, paragraphs: this.scoreValue.paragraphs.map((p, i) => i === this.paraIdx ? { ...p, lyrics: newLyrics } : p) };
+    this.itemIdx = end + 1 + source.length;
+    this.emit();
   }
 
   /** 删除光标左边一个符号；段首时合并上一段。 */

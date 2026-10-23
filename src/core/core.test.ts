@@ -724,3 +724,20 @@ test("tie 弧线几何：同行画中心到中心，跨行（fromPos=-1）优雅
   assert.equal(tieArc([33, 33], -1, 0, 49.5), null);
   assert.equal(tieArc([33, 33], 5, 0, 49.5), null);
 });
+
+test("复制小节：⌘D 克隆光标所在小节插到其后，歌词随行，可撤销", async () => {
+  const { EditorState } = await import("../app/editor-state.ts");
+  const st = new EditorState(compileScore("1 2 | 3 4\n[词:甲 乙 丙 丁]"));
+  // 光标移到第二小节（| 之后）：右移 3 次过 1 2 |
+  st.move(1); st.move(1); st.move(1);
+  st.duplicateMeasure();
+  const notes = st.score.paragraphs[0].notations.map(n => n.note).join("");
+  assert.equal(notes, "12│34│34"); // 副本带前导小节线插在原小节后
+  // 歌词随发声符号复制：副本 3 4 继承 丙 丁
+  assert.deepEqual(st.score.paragraphs[0].lyrics.slice(2, 6), ["丙", "丁", "丙", "丁"]);
+  // key 重新生成不冲突
+  const keys = st.score.paragraphs[0].notations.map(n => n.key);
+  assert.equal(new Set(keys).size, keys.length);
+  st.undo();
+  assert.equal(st.score.paragraphs[0].notations.length, 5); // 1 2 | 3 4
+});
