@@ -7,7 +7,9 @@
  * - 段落两端对齐：段内间隙 = (页宽 - 实宽) / (符号数-1)。
  */
 
-import { BAR, DOUBLE_BAR, EXTEND, isPitchable, Notation, Paragraph, Score } from "../core/model.ts";
+import { BAR, DOUBLE_BAR, EXTEND, isPitchable } from "../core/model.ts";
+import type { Notation, Paragraph, Score } from "../core/model.ts";
+import { wrapRows } from "./layout.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
@@ -94,6 +96,11 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     "data-key": g.n.key,
     transform: `translate(${x}, ${y})`,
   });
+  // 透明命中区让数字周围空隙和细小节线也容易点击。
+  group.appendChild(el("rect", {
+    x: -g.width / 2, y: -32, width: g.width, height: 62,
+    fill: "transparent", "pointer-events": "all",
+  }));
   const n = g.n;
   if (n.note === "│" || n.note === "‖") {
     const h = 30;
@@ -169,6 +176,12 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
     class: "score-svg",
     xmlns: "http://www.w3.org/2000/svg",
   });
+  svg.appendChild(el("text", {
+    x: pageWidth / 2, y: 40,
+    "text-anchor": "middle", "font-size": 24, "font-weight": 600,
+    ...(textWidth(score.title, 24) > pageWidth - 80 ? { textLength: pageWidth - 80 } : {}),
+    lengthAdjust: "spacingAndGlyphs",
+  }, score.title));
   // 调号/拍号/速度行
   const header = `1 = ${score.tone}    ${score.beat[0]}/${score.beat[1]}    ♩= ${score.speed}`;
   svg.appendChild(el("text", {
@@ -191,26 +204,13 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
     // 段内全序下标（含小节线）——播放高亮 data-idx 与 PlayEvent.index 对齐
     const orderIdx = new Map<Notation, number>();
     para.notations.forEach((n, i) => orderIdx.set(n, i));
-    // 按内容宽断行：换行点只落在小节线后（行尾小节线，乐谱惯例）；超长无小节线则硬切
-    const rows: (typeof glyphs)[] = [];
-    let cur: typeof glyphs = [];
-    let curWidth = 0;
-    glyphs.forEach((g) => {
-      if (cur.length && curWidth + g.width > contentWidth && (g.n.note === BAR || g.n.note === DOUBLE_BAR || curWidth > contentWidth * 1.5)) {
-        rows.push(cur);
-        cur = [];
-        curWidth = 0;
-        // 行首小节线吞掉（行尾已画）
-        if (g.n.note === BAR || g.n.note === DOUBLE_BAR) return;
-      }
-      cur.push(g);
-      curWidth += g.width + LAYOUT.minGap;
-    });
-    if (cur.length) rows.push(cur);
+    // width 已含基础间隙；优先在已有小节线后断行，超长小节才按符号拆分。
+    const rows = wrapRows(glyphs, contentWidth, (g) => g.width,
+      (g) => g.n.note === BAR || g.n.note === DOUBLE_BAR);
 
     const paraNo = score.paragraphs.indexOf(para);
     for (const rowGlyphs of rows) {
-      const totalWidth = rowGlyphs.reduce((s, g) => s + g.width, 0) - (rowGlyphs.length ? LAYOUT.minGap : 0);
+      const totalWidth = rowGlyphs.reduce((s, g) => s + g.width, 0);
       const flex = para.alignJustify && rowGlyphs.length > 1 && totalWidth < contentWidth
         ? (contentWidth - totalWidth) / (rowGlyphs.length - 1)
         : 0;
@@ -218,12 +218,35 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
       const row = el("g", { class: "paragraph", "data-para": String(paraNo), transform: `translate(0, ${yOffset})` });
       // 发声符号序号（歌词对齐用）——段内全序，跨视觉行连续
       let soundingIdx = para.lyrics.length ? countSoundingBefore(score, para, rowGlyphs[0]?.n.key ?? "") : 0;
+      const tieFrom = new Map<string, Notation>();
+      para.notations.forEach((n, i) => {
+        if (!n.tieTo) return;
+        const j = para.notations.findIndex(o => o.key === n.tieTo);
+        if (j > i) tieFrom.set(para.notations[j].key, n);
+      });
       rowGlyphs.forEach((g) => {
         const cx = x + g.width / 2;
+        // 连音线：只由配对中靠后的一方绘制，从其中心连到前方符号中心，画在音符下方。
+        // tie 可能跨延音线（1~ - 2 中 to 是 ─），target 不限音符；跨视觉行时退化为在 to 所在行内画短弧。
+        const from = tieFrom.get(g.n.key);
+        if (from) {
+          const fromGlyph = rowGlyphs.find(gg => gg.n.key === from.key);
+          const toCx = cx - LAYOUT.pageMarginX;
+          const arc = tieArc(rowGlyphs.map(gg => gg.width), fromGlyph ? rowGlyphs.indexOf(fromGlyph) : -1, flex, toCx);
+          if (arc) {
+            row.appendChild(el("path", {
+              d: arc,
+              stroke: "currentColor", fill: "none", "stroke-width": 1.2, class: "tie",
+            }));
+          }
+        }
         const glyph = renderGlyph(g, cx, 0, g.n.key === selectedKey);
         glyph.setAttribute("data-idx", String(orderIdx.get(g.n) ?? -1));
+        if (isPitchable(g.n) || g.n.note === EXTEND) {
+          glyph.setAttribute("data-sounding", String(countSoundingIdx(para, g.n)));
+        }
         row.appendChild(glyph);
-        // 歌词：仅发声符号（音符/延音线）有词位
+        // 歌词：仅发声符号（音符/延音线）有词位；data-sounding 记发声序号（卡拉OK 高亮用）
         if (isPitchable(g.n) || g.n.note === EXTEND) {
           soundingIdx += 1;
           const word = para.lyrics[soundingIdx - 1] ?? "";
@@ -233,6 +256,7 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
               "text-anchor": "middle",
               "font-size": LAYOUT.lyricFontSize,
               class: "lyric",
+              "data-sounding": String(soundingIdx - 1),
             }, word));
           }
         }
@@ -241,6 +265,14 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
       svg.appendChild(row);
       yOffset += LAYOUT.lineHeight;
     }
+  }
+  if (score.paragraphs.every((p) => p.notations.length === 0)) {
+    // 空谱引导：新用户第一眼知道从哪开始（点击/按键不产生数据，仅提示）
+    svg.appendChild(el("text", {
+      x: pageWidth / 2, y: yOffset + 48,
+      "text-anchor": "middle", "font-size": 16, fill: "#bbb",
+    }, "直接按 1–7 输入音符 · 或把简谱文本粘贴到画布（⌘V）"));
+    yOffset += 64;
   }
   svg.setAttribute("viewBox", `0 0 ${pageWidth} ${yOffset + 40}`);
   return svg;
@@ -255,4 +287,29 @@ function countSoundingBefore(score: Score, para: Paragraph, key: string): number
     if (isPitchable(n) || n.note === EXTEND) count += 1;
   }
   return count;
+}
+
+/** 符号在段内的发声序号（非发声符号返回 -1；卡拉OK 歌词高亮用） */
+function countSoundingIdx(para: Paragraph, target: Notation): number {
+  let count = 0;
+  for (const n of para.notations) {
+    if (n === target) return count;
+    if (isPitchable(n) || n.note === EXTEND) count += 1;
+  }
+  return -1;
+}
+
+/** 行内符号中心 x（相对行起点；pageMarginX 与 flex 拉伸都计入） */
+export function rowCenterX(widths: number[], index: number, flex: number): number {
+  let x = 0;
+  for (let i = 0; i < index; i++) x += widths[i] + flex;
+  return x + widths[index] / 2;
+}
+
+/** 计算 tie 弧线的 path d 值；fromPos < 0（from 不在本行，跨行 tie）返回 null（优雅退化不画）。
+ * 抽成纯函数以便单测几何语义：起点=from 行内中心，终点=to 行内中心，控制点居中下鼓 8px。 */
+export function tieArc(widths: number[], fromPos: number, flex: number, toCx: number): string | null {
+  if (fromPos < 0 || fromPos >= widths.length) return null;
+  const fromCx = rowCenterX(widths, fromPos, flex);
+  return `M ${fromCx} 6 Q ${(fromCx + toCx) / 2} 14 ${toCx} 6`;
 }

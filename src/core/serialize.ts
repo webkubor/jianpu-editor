@@ -17,7 +17,27 @@ export function serializeScore(score: Score): string {
 export function deserializeScore(json: string): Score | null {
   try {
     const d = JSON.parse(json);
-    if (d.schema !== SCHEMA || !Array.isArray(d.paragraphs)) return null;
+    if (!d || d.schema !== SCHEMA || !Array.isArray(d.paragraphs)) return null;
+    if (d.version !== undefined && d.version !== VERSION) return null;
+    if (d.speed !== undefined && !(typeof d.speed === "number" && Number.isFinite(d.speed) && d.speed > 0)) return null;
+    if (d.beat !== undefined && (!Array.isArray(d.beat) || d.beat.length !== 2 ||
+      !d.beat.every((value: unknown) => typeof value === "number" && Number.isInteger(value) && value > 0))) return null;
+    const keys = new Set<string>();
+    for (const paragraph of d.paragraphs) {
+      if (!paragraph || !Array.isArray(paragraph.notations)) return null;
+      for (const n of paragraph.notations) {
+        if (!n || !["0", "1", "2", "3", "4", "5", "6", "7", "─", "│", "‖"].includes(n.note)) return null;
+        if (n.key !== undefined) {
+          if (typeof n.key !== "string" || !n.key || keys.has(n.key)) return null;
+          keys.add(n.key);
+        }
+        if (n.octave !== undefined && !Number.isSafeInteger(n.octave)) return null;
+        if (n.underline !== undefined && (!Number.isSafeInteger(n.underline) || n.underline < 0)) return null;
+        if (n.beatFrac !== undefined && !(typeof n.beatFrac === "number" && Number.isFinite(n.beatFrac) && n.beatFrac > 0)) return null;
+        if (n.prefixAccidentals !== undefined && (!Array.isArray(n.prefixAccidentals) ||
+          !n.prefixAccidentals.every((value: unknown) => value === "♯" || value === "♭"))) return null;
+      }
+    }
     const score: Score = {
       version: VERSION,
       title: String(d.title ?? "无标题"),
@@ -49,12 +69,27 @@ export function deserializeScore(json: string): Score | null {
   }
 }
 
+/** 文件名净化：去掉路径分隔符与系统保留字符，收尾点空格（Windows 目录陷阱），空名回退无标题 */
+export function sanitizeFilename(name: string): string {
+  return name.replace(/[/\\:*?"<>|]/g, "").replace(/[. ]+$/g, "").trim() || "无标题";
+}
+
 /** 下载为 .jianpu.json 文件 */
 export function downloadScore(score: Score): void {
   const blob = new Blob([serializeScore(score)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `${score.title || "无标题"}.jianpu.json`;
+  a.download = `${sanitizeFilename(score.title)}.jianpu.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** 下载二进制文件（MIDI 导出用） */
+export function downloadBinary(data: Uint8Array, filename: string): void {
+  const blob = new Blob([data.slice().buffer as ArrayBuffer], { type: "audio/midi" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
 }

@@ -9,7 +9,7 @@ import { isPitchable } from "./model.ts";
 
 /** 单符号时值（拍）：与播放层同一套规则——beatFrac 优先（n 连音真实时值），回退减时线折算；延音线 1 拍 */
 function beatsOf(n: Paragraph["notations"][number]): number {
-  if (!isPitchable(n) && n.note !== "─") return 0;
+  if (!isPitchable(n) && n.note !== "─" && n.note !== "0") return 0;
   if (n.note === "─") return 1;
   const base = n.beatFrac ?? 1 / 2 ** Math.min(3, n.underline);
   return n.dotted ? base * 1.5 : base;

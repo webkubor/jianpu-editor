@@ -6,11 +6,12 @@
 
 import { EditorState } from "./editor-state.ts";
 import { renderScore, renderScoreSvg } from "../render/svg-render.ts";
-import { Player, compileEvents } from "../core/player.ts";
+import { Player, compileEvents, timeBefore, toMidi } from "../core/player.ts";
 import { compileScore } from "../core/dsl.ts";
+import { toDsl } from "../core/dsl-export.ts";
 import { validateScore } from "../core/validate.ts";
-import { Score, createScore } from "../core/model.ts";
-import { autosave, deserializeScore, downloadScore, loadAutosave } from "../core/serialize.ts";
+import { createScore } from "../core/model.ts";
+import { autosave, deserializeScore, downloadBinary, downloadScore, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
 function initialScore() {
@@ -25,9 +26,17 @@ function initialScore() {
 const state = new EditorState(initialScore());
 const player = new Player();
 const canvas = document.getElementById("canvas")!;
+const titleInput = document.getElementById("score-title") as HTMLInputElement;
 const toneSelect = document.getElementById("tone") as HTMLSelectElement;
 const speedInput = document.getElementById("speed") as HTMLInputElement;
 const dslArea = document.getElementById("dsl") as HTMLTextAreaElement;
+// DSL 面板是双向入口：画布编辑会回写 DSL 文本，但用户手打的草稿不能被覆盖（点「导入」或外部灌入后才清除标记）
+let dslDirty = false;
+dslArea.addEventListener("input", () => { dslDirty = true; });
+dslArea.addEventListener("blur", () => {
+  // 离开面板且内容与当前谱一致时视为已同步，恢复自动回写
+  if (dslArea.value === toDsl(state.score)) dslDirty = false;
+});
 const statusEl = document.getElementById("status")!;
 
 /** 当前光标符号 key（渲染高亮用） */
@@ -39,38 +48,97 @@ function selectedKey(): string | null {
 function refresh(): void {
   renderScore(canvas, state.score, selectedKey());
   autosave(state.score);
+  (document.getElementById("undo") as HTMLButtonElement).disabled = !state.canUndo;
+  (document.getElementById("redo") as HTMLButtonElement).disabled = !state.canRedo;
+  titleInput.value = state.score.title;
+  document.title = `${state.score.title} · 简谱编辑器`;
   toneSelect.value = state.score.tone;
   speedInput.value = String(state.score.speed);
-  const issues = validateScore(state.score);
+  if (!dslDirty) dslArea.value = toDsl(state.score);  const issues = validateScore(state.score);
   const warn = issues.length
     ? ` · ⚠ ${issues.length} 个小节拍数异常（${issues.slice(0, 2).map((i) => `段${i.paragraph + 1}小节${i.bar + 1}:${i.beats}/${i.expected}拍`).join("、")}）`
     : "";
-  statusEl.textContent = `${state.score.title} · ${state.score.paragraphs.length} 段 · 光标 段${state.paragraphIndex + 1}/位${state.itemIndex}${warn}`;
+  const notice = state.lastNotice ? ` · ${state.lastNotice}` : "";
+  const lyric = state.lyricMode ? ` · ✎ 词模式「${state.lyricDraft}」空格提交 / Esc 退出` : "";
+  statusEl.textContent = `${state.score.title} · ${state.score.paragraphs.length} 段 · 光标 段${state.paragraphIndex + 1}/位${state.itemIndex}${warn}${notice}${lyric}`;
+  // 光标滚动跟随：↑↓ 换段 / 长段编辑时光标保持在视口内（播放跟随走 highlightIndex，此处只管编辑光标）
+  const cursorGlyph = canvas.querySelector(
+    `.paragraph[data-para="${state.paragraphIndex}"] .glyph[data-idx="${state.itemIndex - 1}"]`,
+  );
+  cursorGlyph?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  restorePlayingHighlight();
 }
 state.subscribe(refresh);
+
+/** 画布点击直接选中符号，跨段与自动换行使用相同定位信息。 */
+canvas.addEventListener("click", (event) => {
+  const glyph = (event.target as Element).closest<SVGGElement>(".glyph");
+  const row = glyph?.closest<SVGGElement>(".paragraph");
+  if (!glyph || !row) return;
+  state.selectItem(Number(row.dataset.para), Number(glyph.dataset.idx));
+  (document.activeElement as HTMLElement | null)?.blur();
+});
 
 /** 键盘主路由 */
 window.addEventListener("keydown", (e) => {
   // 输入框聚焦时不劫持
   const target = e.target as HTMLElement;
-  if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
+  if (e.isComposing || e.defaultPrevented || target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  // 保留系统组合键：⌘1 切标签、⌘± 缩放等不应修改乐谱（⌥↑↓ 段重排、⌘⇧Enter 复制段除外）。
+  if (e.metaKey || e.ctrlKey || (e.altKey && e.key !== "ArrowUp" && e.key !== "ArrowDown")) {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "z") {
+      if (e.shiftKey) state.redo();
+      else state.undo();
+      e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "Enter") {
+      state.duplicateParagraph();
+      e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "Backspace") {
+      state.removeParagraph();
+      e.preventDefault();
+    }
+    return;
+  }
+  // 按钮保留原生 Enter/空格激活行为。
+  if (target.closest('button, a') && (e.key === "Enter" || e.key === " ")) return;
 
-  if (/^[1-7]$/.test(e.key)) {
+  state.lastNotice = "";
+  if (/^[0-7]$/.test(e.key)) {
     state.insertNote(e.key);
     e.preventDefault();
     return;
   }
+  // 歌词连续输入模式：可打印字符进词缓冲（数字/字母/汉字/常用符号），Esc 退出
+  if (state.lyricMode) {
+    if (e.key === "Escape") {
+      state.toggleLyricMode();
+      e.preventDefault();
+      return;
+    }
+    if (e.key.length === 1 && e.key !== " " && e.key !== "Enter" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      state.lyricType(e.key);
+      e.preventDefault();
+      return;
+    }
+  }
   switch (e.key) {
-    case " ":
+    case " ": {
+      if (state.lyricMode) {
+        state.lyricCommit();
+        e.preventDefault();
+        break;
+      }
       state.insertExtend();
       e.preventDefault();
       break;
+    }
     case "|":
-      state.insertBar();
+      if (!state.lyricMode) state.insertBar();
       e.preventDefault();
       break;
     case "Backspace":
-      state.backspace();
+      if (state.lyricMode) state.lyricBackspace();
+      else state.backspace();
       e.preventDefault();
       break;
     case "ArrowLeft":
@@ -82,18 +150,14 @@ window.addEventListener("keydown", (e) => {
       e.preventDefault();
       break;
     case "ArrowUp":
-      state.moveParagraph(-1);
+      if (e.altKey) state.reorderParagraph(-1);
+      else state.moveParagraph(-1);
       e.preventDefault();
       break;
     case "ArrowDown":
-      state.moveParagraph(1);
+      if (e.altKey) state.reorderParagraph(1);
+      else state.moveParagraph(1);
       e.preventDefault();
-      break;
-    case "z":
-      if (e.metaKey || e.ctrlKey) {
-        state.undo();
-        e.preventDefault();
-      }
       break;
     case "=":
     case "+":
@@ -104,26 +168,51 @@ window.addEventListener("keydown", (e) => {
       state.tweakOctave(-1);
       e.preventDefault();
       break;
+    case "[":
+      state.changeDuration(-1);
+      e.preventDefault();
+      break;
+    case "~":
+      state.tieToNext();
+      e.preventDefault();
+      break;
+    case "]":
+      state.changeDuration(1);
+      e.preventDefault();
+      break;
     case ".":
       state.toggleDotted();
       e.preventDefault();
       break;
     case "l":
     case "L": {
-      // 歌词：弹出行内输入，回车写入当前符号
-      const word = window.prompt("歌词（写入光标左边发声符号；留空清除）", state.currentLyric);
-      if (word !== null) state.setLyric(word.trim());
+      if (e.shiftKey) {
+        // Shift+L 切换歌词连续输入模式：逐词空格提交，向左推进
+        state.toggleLyricMode();
+      } else {
+        // 歌词：弹出行内输入，回车写入当前符号
+        const word = window.prompt("歌词（写入光标左边发声符号；留空清除）", state.currentLyric);
+        if (word !== null) state.setLyric(word.trim());
+      }
       e.preventDefault();
       break;
     }
     case "Enter": {
-      // 播放/停止
+      if (e.shiftKey) {
+        state.splitParagraph();
+        e.preventDefault();
+        break;
+      }
+      // 播放/停止（⇧Enter 拆段占用；⇧+播放按钮 = 从光标处播）
       if (player.playing) {
         player.stop();
         clearHighlight();
       } else {
         const score = state.score;
-        player.play(compileEvents(score), { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
+        const from = e.shiftKey ? timeBefore(score, state.paragraphIndex, state.itemIndex) : 0;
+        const events = compileEvents(score).filter(ev => ev.start >= from - 1e-9)
+          .map(ev => ({ ...ev, start: ev.start - from }));
+        player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
       }
       e.preventDefault();
       break;
@@ -133,20 +222,58 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-/** 播放高亮：按 data-para/data-idx 定位符号（跨视觉行稳定） */
+/** 播放高亮：按 data-para/data-idx 定位符号（跨视觉行稳定）；DOM 被编辑重建时按播放位置重挂 */
+let playingNow: { index: number; paragraph: number } | null = null;
+
 function highlightIndex(index: number, paragraph: number): void {
-  clearHighlight();
-  const target = [...canvas.querySelectorAll(".paragraph")]
-    .find((row) => row.getAttribute("data-para") === String(paragraph))
-    ?.querySelector(`.glyph[data-idx="${index}"]`);
+  // 只摘除旧高亮 class，playingNow 由下方赋值更新（clearHighlight 会清状态，不能先用）
+  canvas.querySelectorAll(".playing").forEach((g) => g.classList.remove("playing"));
+  canvas.querySelectorAll(".lyric-playing").forEach((t) => t.classList.remove("lyric-playing"));
+  playingNow = { index, paragraph };
+  const target = canvas.querySelector(
+    `.paragraph[data-para="${paragraph}"] .glyph[data-idx="${index}"]`,
+  );
   target?.classList.add("playing");
+  // 卡拉OK：当前音符发声时亮它自己的词（data-sounding 在渲染时挂在 glyph 与 lyric 上）
+  const sounding = target?.getAttribute("data-sounding");
+  if (sounding !== undefined && sounding !== null) {
+    canvas.querySelector(
+      `.paragraph[data-para="${paragraph}"] .lyric[data-sounding="${sounding}"]`,
+    )?.classList.add("lyric-playing");
+  }
+  // 长谱播放：当前音滚入视口（已在视口内则不动；auto 避免快速音符动画堆积）
+  target?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function clearHighlight(): void {
+  playingNow = null;
   canvas.querySelectorAll(".playing").forEach((g) => g.classList.remove("playing"));
+  canvas.querySelectorAll(".lyric-playing").forEach((t) => t.classList.remove("lyric-playing"));
+}
+
+/** 播放期间编辑乐谱会全量重建 DOM 抹掉高亮——每次刷新后按播放位置补挂。 */
+function restorePlayingHighlight(): void {
+  if (playingNow) {
+    const { index, paragraph } = playingNow;
+    const target = canvas.querySelector(
+      `.paragraph[data-para="${paragraph}"] .glyph[data-idx="${index}"]`,
+    );
+    target?.classList.add("playing");
+    const sounding = target?.getAttribute("data-sounding");
+    if (sounding !== undefined && sounding !== null) {
+      canvas.querySelector(
+        `.paragraph[data-para="${paragraph}"] .lyric[data-sounding="${sounding}"]`,
+      )?.classList.add("lyric-playing");
+    }
+  }
 }
 
 /** 工具栏事件 */
+document.getElementById("undo")?.addEventListener("click", () => state.undo());
+document.getElementById("redo")?.addEventListener("click", () => state.redo());
+titleInput.addEventListener("change", () => {
+  state.setTitle(titleInput.value);
+});
 document.getElementById("transpose-up")?.addEventListener("click", () => state.transpose(1));
 document.getElementById("transpose-down")?.addEventListener("click", () => state.transpose(-1));
 
@@ -155,75 +282,81 @@ toneSelect.addEventListener("change", () => {
 });
 
 speedInput.addEventListener("change", () => {
-  const speed = Math.max(20, Math.min(240, Number(speedInput.value) || 72));
-  state.replaceScore({ ...state.score, speed });
+  state.setSpeed(Number(speedInput.value));
 });
 
 document.getElementById("apply-dsl")?.addEventListener("click", () => {
+  applyDsl(dslArea.value);
+});
+
+/** DSL 灌入共用入口（按钮与 ⌘V 粘贴）；失败在状态栏报错，不打断输入。灌入成功后恢复 DSL 自动回写。 */
+function applyDsl(text: string): void {
   try {
-    const score = compileScore(dslArea.value, { ...state.score, paragraphs: [] });
+    const score = compileScore(text, { ...state.score, paragraphs: [] });
     state.replaceScore(score);
+    dslDirty = false;
   } catch (err) {
     statusEl.textContent = `DSL 错误：${(err as Error).message}`;
   }
+}
+
+/** 画布上 ⌘C：把全谱 DSL 复制到剪贴板——与 ⌘V 灌入对称，方便把谱子发给别人。 */
+/** IME 中文输入：composition 期间 keydown 的 key='Process' 不进词缓冲，组合完成后在 compositionend 整段入词。 */
+canvas.addEventListener("compositionend", (ev) => {
+  if (!state.lyricMode) return;
+  const text = ev.data ?? "";
+  for (const ch of text) state.lyricType(ch);
+});
+
+canvas.addEventListener("copy", (ev) => {
+  ev.clipboardData?.setData("text/plain", toDsl(state.score));
+  ev.preventDefault();
+});
+
+/** 画布上 ⌘V：剪贴板里像简谱 DSL 的文本直接灌入（复制别人发的谱子也能直接用）。
+ * 行级判定：音符行必须由数字/DSL 符号组成，词行必须是 [词:…] 格式；至少含一行音符行。
+ * 词行语义是「修饰上方音符行」，若粘贴文本把词行写在音符行前，先重排成规范顺序。 */
+canvas.addEventListener("paste", (ev) => {
+  const text = ev.clipboardData?.getData("text/plain") ?? "";
+  if (!text.trim()) return;
+  const noteLine = /^[0-9０-９\s|‖~～\-－.,，'′＾^#ｂ♭♯ｂ＃]+$/;
+  const lyricLine = /^\[词:[^\]\n]*\]$/;
+  const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const isScore = lines.length > 0 && lines.every(l => noteLine.test(l) || lyricLine.test(l)) && lines.some(l => /[0-9０-９]/.test(l));
+  if (!isScore) return;
+  ev.preventDefault();
+  // 词行重排：前缀词行吸附到其后最近音符行**之后**（DSL 语义词行修饰上方行）
+  const result: string[] = [];
+  const queue: string[] = [];
+  for (const l of lines) {
+    if (lyricLine.test(l)) {
+      queue.push(l);
+      continue;
+    }
+    result.push(l);
+    result.push(...queue.splice(0));
+  }
+  result.push(...queue);
+  applyDsl(result.join("\n"));
 });
 
 document.getElementById("export-dsl")?.addEventListener("click", () => {
   dslArea.value = toDsl(state.score);
 });
 
-/** 乐谱 → DSL 反投影：升降号/连音线/歌词全量保留，按 4 单元重排拍分组 */
-function toDsl(score: Score): string {
-  const lines: string[] = [];
-  for (const para of score.paragraphs) {
-    let line = "";
-    const words: string[] = [];
-    let beatCount = 0;
-    const tieDone = new Set<string>();
-    for (const n of para.notations) {
-      if (n.note >= "1" && n.note <= "7") {
-        let token = n.prefixAccidentals.join("").replace("♯", "#").replace("♭", "b");
-        token += n.note;
-        token += "^".repeat(Math.max(0, n.octave));
-        token += ",".repeat(Math.max(0, -n.octave));
-        token += n.dotted ? "." : "";
-        // 连音线（只输出一次，两向 key 去重）
-        if (n.tieTo && !tieDone.has(n.key)) {
-          token += "~";
-          tieDone.add(n.tieTo);
-        }
-        line += (line ? " " : "") + token;
-        beatCount += 1;
-        words.push(para.lyrics[words.length] ?? "");
-      } else if (n.note === "─") {
-        line += (line ? " " : "") + "-";
-        beatCount += 1;
-        words.push(para.lyrics[words.length] ?? "");
-      } else if (n.note === "│" || n.note === "‖") {
-        line += (line ? " " : "") + n.note;
-        beatCount = 0;
-      }
-      // 每 4 个时值单元插双空格（拍分组重排）
-      if (beatCount === 4) {
-        line += "  ";
-        beatCount = 0;
-      }
-    }
-    lines.push(line.trim());
-    if (words.some((w) => w !== "")) {
-      lines.push(`[词:${words.map((w) => (w === "" ? "-" : w)).join(" ")}]`);
-    }
-  }
-  return lines.join("\n");
-}
-
 document.getElementById("save")?.addEventListener("click", () => {
   downloadScore(state.score);
 });
 
 /** 打印/导出 PNG：SVG 序列化 → 离屏 canvas → 下载 */
-document.getElementById("export-png")?.addEventListener("click", () => {
-  const svg = renderScoreSvg(state.score, null);
+// MIDI 导出：单轨 format 0，速度取当前乐谱，可导入 DAW / 打谱软件
+document.getElementById("export-midi")?.addEventListener("click", () => {
+  const events = compileEvents(state.score);
+  const data = toMidi(events, state.score.speed);
+  downloadBinary(data, `${sanitizeFilename(state.score.title)}.mid`);
+});
+
+document.getElementById("export-png")?.addEventListener("click", () => {  const svg = renderScoreSvg(state.score, null);
   const xml = new XMLSerializer().serializeToString(svg);
   const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -240,7 +373,7 @@ document.getElementById("export-png")?.addEventListener("click", () => {
     URL.revokeObjectURL(url);
     const a = document.createElement("a");
     a.href = cv.toDataURL("image/png");
-    a.download = `${state.score.title || "简谱"}.png`;
+    a.download = `${sanitizeFilename(state.score.title || "简谱")}.png`;
     a.click();
   };
   img.src = url;
@@ -251,9 +384,10 @@ document.getElementById("print")?.addEventListener("click", () => {
   const svg = renderScoreSvg(state.score, null);
   const w = window.open("", "_blank");
   if (!w) return;
-  w.document.write(`<!DOCTYPE html><html><head><title>${state.score.title}</title>
+  w.document.write(`<!DOCTYPE html><html><head><title>简谱</title>
     <style>body{margin:24px;font-family:"Songti SC",serif}svg{max-width:100%}@media print{body{margin:0}}</style>
     </head><body></body></html>`);
+  w.document.title = state.score.title;
   w.document.body.appendChild(w.document.importNode(svg, true));
   w.document.close();
   w.focus();
@@ -278,13 +412,16 @@ document.getElementById("open")?.addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 
-document.getElementById("play")?.addEventListener("click", () => {
+document.getElementById("play")?.addEventListener("click", (ev) => {
   if (player.playing) {
     player.stop();
     clearHighlight();
-  } else {
-    player.play(compileEvents(state.score), { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
+    return;
   }
+  const from = (ev as MouseEvent).shiftKey ? timeBefore(state.score, state.paragraphIndex, state.itemIndex) : 0;
+  const events = compileEvents(state.score).filter(e => e.start >= from - 1e-9)
+    .map(e => ({ ...e, start: e.start - from }));
+  player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
 });
 
 refresh();

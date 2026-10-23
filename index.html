@@ -29,7 +29,7 @@
     }
     header h1 { font-size: 18px; margin: 0 12px 0 0; }
     header label { font-size: 13px; color: #666; }
-    header select, header input[type="number"] {
+    header select, header input {
       font-size: 13px;
       padding: 4px 6px;
       border: 1px solid #ccc;
@@ -63,6 +63,8 @@
     .score-svg .glyph { cursor: pointer; }
     .score-svg .glyph.selected { fill: var(--accent); }
     .score-svg .glyph.playing { fill: var(--accent); }
+    .score-svg .lyric { fill: #555; }
+    .score-svg .lyric.lyric-playing { fill: var(--accent); font-weight: 700; }
     aside { display: flex; flex-direction: column; gap: 12px; }
     aside section {
       background: #fff;
@@ -95,13 +97,17 @@
 <body>
   <header>
     <h1>简谱编辑器</h1>
+    <label>曲名 <input id="score-title" type="text" maxlength="120" value="未命名" /></label>
 <label>调 <select id="tone"><option value="♭A">1=♭A</option><option value="A">1=A</option><option value="♭B">1=♭B</option><option value="B">1=B</option><option value="C" selected>1=C</option><option value="♭D">1=♭D</option><option value="D">1=D</option><option value="♭E">1=♭E</option><option value="E">1=E</option><option value="F">1=F</option><option value="♭G">1=♭G</option><option value="G">1=G</option></select></label>
     <label>速度 <input id="speed" type="number" min="20" max="240" value="72" /></label>
     <button id="transpose-down">♭降半音</button>
     <button id="transpose-up">♯升半音</button>
-    <button id="play">▶ 播放 (Enter)</button>
+    <button id="undo" title="撤销上一步（⌘Z / Ctrl+Z）">↶ 撤销</button>
+    <button id="redo" title="重做（⌘⇧Z / Ctrl+Shift+Z）">↪ 重做</button>
+    <button id="play" title="Shift+点击 = 从光标处播放">▶ 播放 (Enter)</button>
     <button id="save">⬇ 保存 .json</button>
     <button id="export-png">🖼 PNG</button>
+    <button id="export-midi" title="导出单轨 MIDI，可导入 DAW / 打谱软件">🎵 MIDI</button>
     <button id="print">🖨 打印</button>
     <span id="status"></span>
   </header>
@@ -111,9 +117,10 @@
       <section>
         <h2>键盘速记</h2>
         <div class="hint">
-          <kbd>1</kbd>–<kbd>7</kbd> 音符 · <kbd>空格</kbd> 延音线 · <kbd>|</kbd> 小节线<br/>
-          <kbd>←→</kbd> 移动 · <kbd>↑↓</kbd> 换段 · <kbd>Backspace</kbd> 删除<br/>
-          <kbd>+</kbd>/<kbd>-</kbd> 八度 · <kbd>.</kbd> 附点 · <kbd>⌘Z</kbd> 撤销 · <kbd>L</kbd> 歌词
+          <kbd>1</kbd>–<kbd>7</kbd> 音符 · <kbd>0</kbd> 休止 · <kbd>空格</kbd> 延音线 · <kbd>|</kbd> 小节线<br/>
+          <kbd>←→</kbd> 移动 · <kbd>↑↓</kbd> 换段 · <kbd>⌥↑↓</kbd> 段重排 · <kbd>⇧Enter</kbd> 拆段 · <kbd>⌘⇧Enter</kbd> 复制段 · <kbd>⌘⌫</kbd> 删段 · <kbd>Backspace</kbd> 删除 / 段首合并<br/>
+          <kbd>[</kbd> 减一条减时线 · <kbd>]</kbd> 加一条减时线<br/>
+          <kbd>+</kbd>/<kbd>-</kbd> 八度 · <kbd>.</kbd> 附点 · <kbd>~</kbd> 连音线 · <kbd>⌘Z</kbd> 撤销 · <kbd>L</kbd> 歌词 · <kbd>⇧L</kbd> 连续填词
         </div>
       </section>
       <section>
@@ -126,6 +133,7 @@
         <div class="hint" style="margin-top:8px">
           空格=拍内分组，<b>双空格=拍边界</b>；<code>-</code>延音 <code>~</code>连音线
           <code>,</code>低八度 <code>'</code>/<code>^</code>高八度 <code>#</code>/<code>b</code>变音 <code>.</code>附点<br/>
+          导出后缀 <code>:拍数/线数</code> 保留原节奏，例如 <code>1:0.5/1</code>。<br/>
           歌词行：<code>[词:你 好 吗]</code>（按发声符号逐个对应，不足留空）
         </div>
       </section>

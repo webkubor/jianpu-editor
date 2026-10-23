@@ -5,11 +5,467 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compileLine, tokenizeLine } from "./dsl.ts";
+import { compileLine, compileScore, tokenizeLine } from "./dsl.ts";
+import { toDsl } from "./dsl-export.ts";
+import { EditorState } from "../app/editor-state.ts";
+
+test("DSL 时值导出无长浮点：1/3 记 0.3333，整数记原值，往返近似等价", () => {
+  const score = compileScore("1 2 3  5");
+  const text = toDsl(score);
+  assert.ok(text.includes("0.3333"), text);
+  assert.ok(!text.includes("16666666666666666"));
+  const reparsed = compileScore(text);
+  const orig = score.paragraphs[0].notations.map((n) => [n.note, n.underline]);
+  const back = reparsed.paragraphs[0].notations.map((n) => [n.note, n.underline]);
+  assert.deepEqual(back, orig);
+  // 1/3 与 0.3333 播放误差 < 0.2ms（人耳不可辨）
+  const beatSec = 60 / score.speed;
+  const beats0 = score.paragraphs[0].notations[0].beatFrac!;
+  const beats1 = reparsed.paragraphs[0].notations[0].beatFrac!;
+  assert.ok(Math.abs(beats0 - beats1) * beatSec < 0.0002);
+});
+
+test("同音高连音线播放合并为一个持续音，异音高不合并", () => {
+  const score = compileScore("1  1  2");
+  const [a, b, c] = score.paragraphs[0].notations;
+  a.tieTo = b.key; b.tieTo = a.key;
+  const events = compileEvents(score).filter(e => e.midi !== null);
+  assert.equal(events.length, 2);
+  assert.ok(Math.abs(events[0].duration - 2 * 60 / score.speed * 0.92) < 1e-9);
+  assert.equal(events[0].index, 0);
+  c.tieTo = a.key;
+  const cross = compileEvents(score).filter(e => e.midi !== null);
+  assert.equal(cross.length, 2);
+});
+
+test("timeBefore：光标处播放起点=光标前总时值，跨段累计", () => {
+  // 双空格拍边界让 1、2 各占整拍，断言值直观
+  const score = compileScore("1  2\n3  4");
+  assert.equal(timeBefore(score, 0, 0), 0);
+  assert.equal(timeBefore(score, 0, 1), 60 / score.speed);
+  // 段1 首 = 段0 全部时值（2 整拍）
+  const secBeat = 60 / score.speed;
+  assert.ok(Math.abs(timeBefore(score, 1, 0) - 2 * secBeat) < 1e-9);
+});
+
+test("删段：removeParagraph 删除当前段，光标进邻段；最后一段清空不删", () => {
+  const st = new EditorState(compileScore("1 2\n3 4\n5 6"));
+  st.moveParagraph(1);
+  st.removeParagraph();
+  assert.equal(st.score.paragraphs.length, 2);
+  assert.equal(st.score.paragraphs[1].notations[0].note, "5");
+  assert.equal(st.paragraphIndex, 1); // 删尾段光标退到新末段
+  st.moveParagraph(-2);
+  st.removeParagraph(); // 删首段
+  assert.equal(st.score.paragraphs[0].notations[0].note, "5");
+  // 剩 1 段：提示不删
+  st.removeParagraph();
+  assert.ok(st.lastNotice.includes("最后一段"));
+  assert.equal(st.score.paragraphs.length, 1);
+  st.undo();
+  assert.equal(st.score.paragraphs.length, 2); // 撤回删首段
+});
+
+test("复制段：duplicateParagraph 克隆旋律与歌词，源段不动，可撤销", () => {
+  const st = new EditorState(compileScore("1 2\n3 4"));
+  st.move(1);
+  st.setLyric("春");
+  const before = JSON.stringify(st.score.paragraphs[0]);
+  st.duplicateParagraph();
+  assert.equal(st.score.paragraphs.length, 3);
+  // 副本在源段下方：旋律、歌词与源段一致
+  assert.equal(JSON.stringify(st.score.paragraphs[0]), before);
+  assert.equal(st.score.paragraphs[1].notations[0].note, "1");
+  assert.equal(st.score.paragraphs[1].lyrics[0], "春");
+  assert.equal(st.paragraphIndex, 1);
+  // 副本是深拷贝：改副本不影响源段
+  st.move(1);
+  st.setLyric("夏");
+  assert.equal(st.score.paragraphs[0].lyrics[0], "春");
+  assert.equal(st.score.paragraphs[1].lyrics[0], "夏");
+  st.undo(); // 撤「夏」
+  assert.equal(st.score.paragraphs[1].lyrics[0], "春");
+  st.undo(); // 撤复制
+  assert.equal(st.score.paragraphs.length, 2);
+});
+
+test("歌词连续输入模式：缓冲提交右移推进，退格清理，Esc 语义", () => {
+  const st = new EditorState(compileScore("1  2  3  4"));
+  st.toggleLyricMode();
+  assert.equal(st.lyricMode, true);
+  for (const ch of "春") st.lyricType(ch);
+  st.lyricCommit(); // 写到光标左边（初始 itemIdx=0 左边无符号 → 提示且不推进）
+  assert.ok(st.lastNotice.includes("不是发声符号"));
+  assert.equal(st.score.paragraphs[0].lyrics.length, 0);
+  assert.equal(st.itemIndex, 0); // 失败不推进，缓冲已清可直接重打
+  st.move(1); // 光标到 1 后
+  for (const ch of "晓") st.lyricType(ch);
+  st.lyricCommit();
+  assert.equal(st.score.paragraphs[0].lyrics[0], "晓");
+  assert.equal(st.itemIndex, 2); // 右移推进（越过 1 → 缝在 1|2）
+  st.lyricType("风");
+  st.lyricCommit(); // 光标缝在 1|2 → currentItem=2 → 写 lyrics[1]，推进到 2|3
+  assert.equal(st.score.paragraphs[0].lyrics[1], "风");
+  // 退格：缓冲非空删字符
+  st.lyricType("雨");
+  st.lyricType("雪");
+  st.lyricBackspace();
+  assert.equal(st.lyricDraft, "雨");
+  st.lyricCommit(); // 写 lyrics[2]
+  assert.equal(st.score.paragraphs[0].lyrics[2], "雨");
+  // 退出丢弃缓冲
+  st.lyricType("残");
+  st.toggleLyricMode();
+  assert.equal(st.lyricMode, false);
+  assert.equal(st.lyricDraft, "");
+  assert.equal(st.score.paragraphs[0].lyrics[3], undefined);
+});
+
+test("setSpeed：改速度可撤销且不清撤销栈，值域钳制 20–240", () => {
+  const st = new EditorState(compileScore("1 2"));
+  st.setSpeed(90);
+  assert.equal(st.score.speed, 90);
+  assert.equal(st.canUndo, true);
+  st.setSpeed(9999);
+  assert.equal(st.score.speed, 240);
+  st.undo();
+  assert.equal(st.score.speed, 90); // 撤回到 90
+});
+
+test("sanitizeFilename：路径分隔符与系统保留字符剔除，空名回退无标题", () => {
+  assert.equal(sanitizeFilename('我的/歌:谱*?'), "我的歌谱");
+  assert.equal(sanitizeFilename("..\\..\\x"), "....x"); // 内部点保留，仅收尾点去除
+  assert.equal(sanitizeFilename("..\\..\\x. ."), "....x");
+  assert.equal(sanitizeFilename("  "), "无标题");
+  assert.equal(sanitizeFilename("正常名"), "正常名");
+});
+
+test("replaceScore 清空撤销栈：打开新文件后 ⌘Z 不串回旧谱", () => {
+  const st = new EditorState(compileScore("1 2"));
+  st.move(1);
+  st.setLyric("春");
+  st.replaceScore({ ...st.score, title: "新谱", paragraphs: compileScore("3 4").paragraphs });
+  assert.equal(st.canUndo, false);
+  assert.equal(st.canRedo, false);
+  st.undo(); // 无效果
+  assert.equal(st.score.paragraphs[0].notations[0].note, "3");
+  assert.equal(st.score.title, "新谱");
+});
+
+test("中文输入法容错：全角数字/空格/小节线/逗号归一化为半角", () => {
+  const s = compileScore("１２　６，１｜３");
+  const nots = s.paragraphs[0].notations;
+  assert.deepEqual(nots.map(n => n.note), ["1", "2", "6", "1", "│", "3"]);
+  assert.equal(nots[2].octave, -1); // 全角逗号 = 低八度
+  // ～ 连音线、－ 延音线、． 附点
+  const s2 = compileScore("１．－２");
+  const nots2 = s2.paragraphs[0].notations;
+  assert.ok(nots2[0].dotted);
+  assert.equal(nots2[1].note, "─");
+});
+
+test("分组时值：n音组平分一拍、附点保留1.5、8音组减时线封顶3层", () => {
+  // 三连音
+  const tri = compileScore("1 2 3  4");
+  assert.ok(Math.abs(tri.paragraphs[0].notations[0].beatFrac! - 1 / 3) < 1e-9);
+  // 附点组：附点音显式 1.5 拍不被平分覆盖
+  const dots = compileScore("1. 2.  3 4");
+  const d0 = dots.paragraphs[0].notations[0];
+  assert.equal(d0.beatFrac, 1.5);
+  assert.ok(d0.dotted);
+  // 8 音组：视觉 3 层封顶，真实时值 1/8
+  const oct = compileScore("1 2 3 4 5 6 7 1");
+  assert.equal(oct.paragraphs[0].notations[0].underline, 3);
+  assert.ok(Math.abs(oct.paragraphs[0].notations[0].beatFrac! - 0.125) < 1e-9);
+});
+
+test("段落重排：reorderParagraph 交换整段（含歌词），光标跟随，可撤销", () => {
+  const st = new EditorState(compileScore("1 2\n3 4"));
+  st.move(1); // 光标在 2 后，词落到发声符号 2（歌词下标 0）
+  st.setLyric("春");
+  st.moveParagraph(1); // 换段保留列位置 → itemIdx=1，光标在 3 后
+  st.setLyric("风");
+  st.reorderParagraph(-1); // 段2 移到段1
+  assert.equal(st.score.paragraphs[0].notations[0].note, "3");
+  assert.equal(st.score.paragraphs[0].lyrics[0], "风");
+  assert.equal(st.score.paragraphs[1].lyrics[0], "春");
+  assert.equal(st.paragraphIndex, 0);
+  st.undo();
+  assert.equal(st.score.paragraphs[0].notations[0].note, "1");
+  // undo 恢复光标到段2，合法上移；回到段1 再上移才触发边界提示
+  st.reorderParagraph(-1);
+  assert.equal(st.score.paragraphs[0].notations[0].note, "3");
+  st.moveParagraph(0);
+  st.reorderParagraph(-1);
+  assert.ok(st.lastNotice.includes("第一段"));
+  assert.equal(st.canRedo, false);
+});
+
+test("删除连音线一端解除另一端悬空引用；段首延音线提示不产生空撤销", () => {
+  const st = new EditorState(compileScore("1 2 3"));
+  st.move(1);
+  st.tieToNext();
+  st.backspace();
+  assert.ok(st.score.paragraphs[0].notations.every(n => !n.tieTo));
+  // 导出不再带 ~
+  assert.ok(!toDsl(st.score).includes("~"));
+  const st2 = new EditorState(compileScore("1 2"));
+  st2.insertExtend();
+  assert.equal(st2.canUndo, false);
+  assert.ok(st2.lastNotice.includes("段首"));
+});
+
+test("连音线跨延音线：tie 连到 ─，播放合并且中段不断音", () => {
+  const score = compileScore("1~ - 2");
+  const [a, ext, c] = score.paragraphs[0].notations;
+  assert.equal(a.tieTo, ext.key);
+  assert.equal(ext.tieTo, a.key);
+  assert.equal(c.tieTo, null);
+  const events = compileEvents(score).filter(e => e.midi !== null);
+  assert.equal(events.length, 2);
+  // 1 与 ─ 合并 = 2 拍；─ 不再单独发声
+  assert.ok(Math.abs(events[0].duration - 2 * 60 / score.speed * 0.92) < 1e-9);
+});
+
+test("连音线被小节线打断：DSL 中 ~ 后接 | 不跨线连接", () => {
+  const score = compileScore("1~ | 2");
+  assert.equal(score.paragraphs[0].notations.filter(n => n.tieTo).length, 0);
+});
+
+test("键盘连音线建立双向引用并可撤销，渲染层与 DSL 导出闭环", () => {
+  const state = new EditorState(compileScore("1  2"));
+  state.move(1);
+  state.tieToNext();
+  const [a, b] = state.score.paragraphs[0].notations;
+  assert.equal(a.tieTo, b.key);
+  assert.equal(b.tieTo, a.key);
+  assert.equal(state.canUndo, true);
+  state.undo();
+  assert.equal(state.score.paragraphs[0].notations[0].tieTo, null);
+  state.redo();
+  const dsl = toDsl(state.score);
+  assert.ok(dsl.includes("~"), dsl);
+  assert.deepEqual(
+    compileScore(dsl).paragraphs[0].notations.slice(0, 2).map(n => Boolean(n.tieTo)),
+    [true, true],
+  );
+  state.selectItem(0, 0);
+  state.tieToNext();
+  assert.equal(state.score.paragraphs[0].notations[0].tieTo, null);
+});
+
+test("附点休止符编辑、播放与存储往返时值一致", () => {
+  const state = new EditorState(compileScore("0  1"));
+  state.move(1);
+  state.toggleDotted();
+  assert.equal(noteBeats(state.currentItem!), 1.5);
+  assert.ok(Math.abs(compileEvents(state.score)[1].start - 1.5 * 60 / state.score.speed) < 1e-9);
+  const restored = deserializeScore(serializeScore(state.score))!;
+  assert.equal(noteBeats(restored.paragraphs[0].notations[0]), 1.5);
+  assert.equal(noteBeats(compileScore(toDsl(restored)).paragraphs[0].notations[0]), 1.5);
+  state.undo();
+  assert.equal(state.currentItem?.dotted, false);
+  state.redo();
+  assert.equal(state.currentItem?.dotted, true);
+});
+
+test("文件加载拦截异常时值、重复键和未知版本", () => {
+  const valid = JSON.parse(serializeScore(compileScore("1  2")));
+  for (const mutate of [
+    (d: typeof valid) => { d.version = 99; },
+    (d: typeof valid) => { d.speed = -1; },
+    (d: typeof valid) => { d.beat = [4, 0]; },
+    (d: typeof valid) => { d.paragraphs[0].notations[0].note = "invalid"; },
+    (d: typeof valid) => { d.paragraphs[0].notations[0].beatFrac = -1; },
+    (d: typeof valid) => { d.paragraphs[0].notations[1].key = d.paragraphs[0].notations[0].key; },
+  ]) {
+    const data = structuredClone(valid);
+    mutate(data);
+    assert.equal(deserializeScore(JSON.stringify(data)), null);
+  }
+  assert.ok(deserializeScore(JSON.stringify(valid)));
+});
+
+test("段首删除合并前段，缺省歌词补位且撤销重做保留光标", () => {
+  const state = new EditorState(compileScore("1  0  2\n3  4\n[词:春 风]"));
+  const keys = state.score.paragraphs.flatMap(p => p.notations.map(n => n.key));
+  state.moveParagraph(1);
+  state.backspace();
+  assert.equal(state.score.paragraphs.length, 1);
+  assert.equal(state.itemIndex, 3);
+  assert.deepEqual(state.paragraph.notations.map(n => n.key), keys);
+  assert.deepEqual(state.paragraph.lyrics, ["", "", "春", "风"]);
+  state.undo();
+  assert.equal(state.paragraphIndex, 1);
+  assert.equal(state.itemIndex, 0);
+  state.redo();
+  assert.equal(state.paragraphIndex, 0);
+  assert.equal(state.itemIndex, 3);
+});
+
+test("首段段首删除无操作，空段合并也可撤销", () => {
+  const state = new EditorState(compileScore("1"));
+  state.backspace();
+  assert.equal(state.canUndo, false);
+  state.splitParagraph();
+  state.backspace();
+  assert.equal(state.score.paragraphs.length, 1);
+  state.undo();
+  assert.equal(state.score.paragraphs.length, 2);
+});
+
+test("拆段保留符号和歌词，撤销重做恢复段落与光标", () => {
+  const state = new EditorState(compileScore("1  0  2 | 3 ‖\n[词:你 好 吗]"));
+  const keys = state.paragraph.notations.map(n => n.key);
+  state.move(2);
+  state.splitParagraph();
+  assert.equal(state.paragraphIndex, 1);
+  assert.equal(state.itemIndex, 0);
+  assert.deepEqual(state.score.paragraphs.flatMap(p => p.notations.map(n => n.key)), keys);
+  assert.deepEqual(state.score.paragraphs.map(p => p.lyrics), [["你"], ["好","吗"]]);
+  state.undo();
+  assert.equal(state.score.paragraphs.length, 1);
+  assert.equal(state.itemIndex, 2);
+  state.redo();
+  assert.equal(state.score.paragraphs.length, 2);
+  assert.equal(state.itemIndex, 0);
+});
+
+test("鼠标定位跨段符号且不污染历史，无效定位保持原位", () => {
+  const state = new EditorState(compileScore("1  2\n3  4"));
+  state.selectItem(1, 1);
+  assert.equal(state.currentItem?.note, "4");
+  assert.equal(state.canUndo, false);
+  state.selectItem(-1, 0);
+  state.selectItem(1, 99);
+  assert.equal(state.itemIndex, 2);
+  state.changeDuration(1);
+  assert.equal(state.score.paragraphs[1].notations[1].beatFrac, 0.5);
+  state.undo();
+  assert.equal(state.currentItem?.note, "4");
+});
+
+test("重做恢复内容与光标，新编辑清除旧分支", () => {
+  const state = new EditorState(compileScore("1  2"));
+  state.move(1);
+  state.insertNote("3");
+  state.undo();
+  assert.equal(state.canRedo, true);
+  state.redo();
+  assert.equal(state.itemIndex, 2);
+  assert.equal(state.currentItem?.note, "3");
+  assert.equal(state.canRedo, false);
+  state.undo();
+  state.insertNote("4");
+  assert.equal(state.canRedo, false);
+  state.redo();
+  assert.deepEqual(state.paragraph.notations.map(n => n.note), ["1", "4", "2"]);
+});
+
+test("撤销恢复操作前的段落与光标，含空谱导入", () => {
+  const state = new EditorState(compileScore("1  2\n3  4"));
+  state.moveParagraph(1);
+  state.move(1);
+  state.insertNote("5");
+  state.moveParagraph(-1);
+  state.undo();
+  assert.equal(state.paragraphIndex, 1);
+  assert.equal(state.itemIndex, 1);
+  assert.equal(state.currentItem?.note, "3");
+  state.replaceScore(compileScore(""));
+  state.undo(); // replaceScore 清栈，undo 无效果
+  assert.equal(state.paragraphIndex, 0);
+  assert.equal(state.itemIndex, 0);
+  state.backspace();
+  state.undo();
+  assert.equal(state.currentItem, null);
+});
+
+test("时值修改覆盖分组推断，保留附点并支持休止与撤销", () => {
+  const state = new EditorState(compileScore("1. 2 3  0 ‖"));
+  state.move(1);
+  state.changeDuration(1);
+  assert.equal(noteBeats(state.currentItem!), 0.1875);
+  state.changeDuration(-1);
+  assert.equal(noteBeats(state.currentItem!), 0.375);
+  state.undo();
+  assert.equal(noteBeats(state.currentItem!), 0.1875);
+  state.move(3);
+  state.changeDuration(1);
+  assert.equal(noteBeats(state.currentItem!), 0.5);
+  // 往返后播放事件近似一致（0.3333 与 1/3 差 < 0.1ms）
+  const round = compileEvents(compileScore(toDsl(state.score)));
+  const direct = compileEvents(state.score);
+  assert.equal(round.length, direct.length);
+  for (let i = 0; i < round.length; i += 1) {
+    assert.equal(round[i].index, direct[i].index);
+    assert.equal(round[i].midi, direct[i].midi);
+    assert.ok(Math.abs(round[i].start - direct[i].start) < 1e-4, `start@${i}`);
+    assert.ok(Math.abs(round[i].duration - direct[i].duration) < 1e-4, `duration@${i}`);
+  }
+});
+
+test("歌词编辑不覆盖下一音符，增删保留原音符歌词，撤销恢复", () => {
+  const state = new EditorState(compileScore("1  2 | 3 ‖\n[词:你 好 吗]"));
+  const keys = state.paragraph.notations.map(n => n.key);
+  state.move(1);
+  state.setLyric("风");
+  assert.deepEqual(state.paragraph.notations.map(n => n.key), keys);
+  assert.deepEqual(state.paragraph.notations.map(n => n.note), ["1","2","│","3","‖"]);
+  assert.equal(state.currentLyric, "风");
+  state.insertNote("4");
+  assert.deepEqual(state.paragraph.lyrics, ["风","","好","吗"]);
+  state.backspace();
+  assert.deepEqual(state.paragraph.lyrics, ["风","好","吗"]);
+  state.undo();
+  assert.deepEqual(state.paragraph.lyrics, ["风","","好","吗"]);
+  state.move(2);
+  assert.equal(state.currentItem?.note, "│");
+  const before = JSON.stringify(state.score);
+  state.setLyric("小节线无词");
+  assert.equal(JSON.stringify(state.score), before);
+});
+
+test("文本往返：休止、三连音、附点、变音、八度、歌词与播放时值保持", () => {
+  const score = compileScore("#4, 0 5.  6^~7^  - | 0  1 ‖\n[词:风 来 - 云 - 雨]");
+  const restored = compileScore(toDsl(score));
+  const shape = (s: typeof score) => s.paragraphs.map(p => ({
+    lyrics: p.lyrics,
+    notes: p.notations.map(n => [n.note,n.octave,n.dotted,n.underline,n.prefixAccidentals,Number((n.beatFrac ?? 1 / 2 ** Math.min(3, n.underline)).toFixed(3)),Boolean(n.tieTo)])
+  }));
+  assert.deepEqual(shape(restored), shape(score));
+  // 1/3 三连音导出为 0.3333，播放差 < 0.1ms，用近似断言
+  const round = compileEvents(restored);
+  const direct = compileEvents(score);
+  assert.equal(round.length, direct.length);
+  for (let i = 0; i < round.length; i += 1) {
+    assert.equal(round[i].index, direct[i].index);
+    assert.equal(round[i].midi, direct[i].midi);
+    assert.ok(Math.abs(round[i].start - direct[i].start) < 1e-4, `start@${i}`);
+    assert.ok(Math.abs(round[i].duration - direct[i].duration) < 1e-4, `duration@${i}`);
+  }
+  const quarterNotes = createScore({paragraphs: [compileLine("1  0  2  3 ‖")]});
+  assert.deepEqual(
+    compileEvents(compileScore(toDsl(quarterNotes))).map(e => [e.index, e.midi, Math.round(e.start * 1e6), Math.round(e.duration * 1e6)]),
+    compileEvents(quarterNotes).map(e => [e.index, e.midi, Math.round(e.start * 1e6), Math.round(e.duration * 1e6)]),
+  );
+});
 import { transpose, transposeTo, parseTone } from "./transpose.ts";
-import { serializeScore, deserializeScore } from "./serialize.ts";
-import { compileEvents, noteBeats } from "./player.ts";
+import { serializeScore, deserializeScore, sanitizeFilename } from "./serialize.ts";
+import { compileEvents, noteBeats, timeBefore } from "./player.ts";
 import { createScore, createNote } from "./model.ts";
+import { wrapRows } from "../render/layout.ts";
+
+test("长谱换行：保留全部符号、小节线和终止线，行宽受限", () => {
+  const items = "123|456|789‖".split("");
+  const rows = wrapRows(items, 5, () => 1, (item) => item === "|" || item === "‖");
+  assert.deepEqual(rows.map((row) => row.join("")), ["123|", "456|", "789‖"]);
+  assert.deepEqual(rows.flat(), items);
+  assert.ok(rows.every((row) => row.length <= 5));
+  const dense = wrapRows("123456789‖".split(""), 3, () => 1, (item) => item === "‖");
+  assert.deepEqual(dense.flat().join(""), "123456789‖");
+  assert.ok(dense.every((row) => row.length <= 3));
+});
 
 test("tokenize：基本音符流", () => {
   const { tokens, beatBreaks } = tokenizeLine("1 2 3 | 6, 5 ‖");
@@ -166,6 +622,23 @@ test("player：事件编译时值", () => {
   assert.equal(events[0].midi, 60); // C 调 do = C4
 });
 
+test("休止符：混合分组、尾部静音与全休止小节保留时值", async () => {
+  const { compileScore } = await import("./dsl.ts");
+  const { validateScore } = await import("./validate.ts");
+  const score = compileScore("1 0  2  0  0 ‖", { speed: 60 });
+  const events = compileEvents(score);
+  assert.deepEqual(events.map((e) => e.start), [0, 0.5, 1, 2, 3]);
+  assert.deepEqual(events.map((e) => e.midi), [60, null, 62, null, null]);
+  assert.equal(events.at(-1)!.start + events.at(-1)!.duration, 4);
+  assert.deepEqual(validateScore(score), []);
+  const silent = compileScore("0  0  0  0 ‖", { speed: 60 });
+  assert.equal(compileEvents(silent).length, 4);
+  assert.ok(compileEvents(silent).every((e) => e.midi === null));
+  assert.deepEqual(validateScore(silent), []);
+  transpose(silent, -3);
+  assert.ok(silent.paragraphs[0].notations.slice(0, 4).every((n) => n.note === "0" && n.octave === 0));
+});
+
 test("player：♭B 调 do 是 B♭", () => {
   const score = createScore({ tone: "♭B", speed: 60 });
   score.paragraphs[0].notations = [createNote({ note: "1" })];
@@ -199,4 +672,55 @@ test("beatFrac：组内 n 音真实时值 1/n（三连音 1/3 拍）", async () 
   assert.deepEqual(validateScore(score), []);
   // 无 beatFrac 回退减时线折算（旧数据兼容）
   assert.ok(Math.abs(noteBeats({ underline: 2, dotted: false }) - 0.25) < 1e-9);
+});
+
+test("MIDI 导出：头块/轨长/速度事件/音符开关配对完整", async () => {
+  const { compileEvents, toMidi } = await import("./player.ts");
+  const score = compileScore("1  2");
+  const data = toMidi(compileEvents(score), score.speed);
+  const s = (o: number, n: number) => String.fromCharCode(...data.slice(o, o + n));
+  // 头块：MThd + 长度6 + format0 + 1轨 + TPQ480
+  assert.equal(s(0, 4), "MThd");
+  assert.equal((data[8] << 8) | data[9], 0);
+  assert.equal((data[10] << 8) | data[11], 1);
+  assert.equal((data[12] << 8) | data[13], 480);
+  // 轨块：MTrk + 声明的轨长等于实际剩余
+  assert.equal(s(14, 4), "MTrk");
+  const declared = (data[18] << 24) | (data[19] << 16) | (data[20] << 8) | data[21];
+  assert.equal(declared, data.length - 22);
+  // 遍历事件流：统计 note-on/off 与 tempo
+  let tempo = 0, on = 0, off = 0, ended = false;
+  let i = 22;
+  const readVarint = () => { let v = 0; while (true) { const b = data[i++]; v = (v << 7) | (b & 0x7f); if (!(b & 0x80)) return v; } };
+  while (i < data.length) {
+    readVarint();
+    const st = data[i++];
+    if (st === 0xff) {
+      const type = data[i++], len = readVarint();
+      if (type === 0x51) tempo = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+      if (type === 0x2f) ended = true;
+      i += len;
+    } else if (st === 0x90) { on += 1; i += 2; }
+    else if (st === 0x80) { off += 1; i += 2; }
+    else return Promise.reject(new Error(`未知状态字节 ${st}`));
+  }
+  assert.equal(on, 2);
+  assert.equal(off, 2);
+  assert.equal(ended, true);
+  // 速度：60s/beat 换算微秒（speed=72 → 833333us）
+  assert.equal(tempo, Math.round(60_000_000 / score.speed));
+});
+
+test("tie 弧线几何：同行画中心到中心，跨行（fromPos=-1）优雅退化", async () => {
+  const { tieArc, rowCenterX } = await import("../render/svg-render.ts");
+  // 三符号行宽各 33、无 flex：from=0 → 16.5；to=1 → 49.5
+  assert.equal(rowCenterX([33, 33, 33], 0, 0), 16.5);
+  assert.equal(rowCenterX([33, 33, 33], 1, 0), 49.5);
+  const arc = tieArc([33, 33, 33], 0, 0, 49.5);
+  assert.equal(arc, "M 16.5 6 Q 33 14 49.5 6");
+  // flex 拉伸：gap=10 → 第二符号中心 33+10+16.5
+  assert.equal(rowCenterX([33, 33], 1, 10), 59.5);
+  // from 不在本行（跨行 tie）→ 不画
+  assert.equal(tieArc([33, 33], -1, 0, 49.5), null);
+  assert.equal(tieArc([33, 33], 5, 0, 49.5), null);
 });

@@ -20,6 +20,7 @@ import type { NoteDigit, Notation, Paragraph, Score } from "./model.ts";
 /** 词法单元 */
 export type Token =
   | { t: "note"; digit: string; octave: number; dotted: boolean; accidentals: ("♯" | "♭")[] }
+  | { t: "duration"; beats: number; underline: number }
   | { t: "extend" }
   | { t: "bar"; double?: boolean }
   | { t: "tie" }
@@ -42,6 +43,21 @@ export function tokenizeLine(line: string): LexResult {
   let i = 0;
   let spaceRun = 0;
   let pendingOctaveUp = false;
+  // 中文输入法容错：全角数字/符号归一化为半角（１→1、｜→|、～→~、＃→#、　→空格等）
+  const normalized = line
+    .replace(/　/g, " ")
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/｜/g, "|")
+    .replace(/‖/g, "‖")
+    .replace(/～/g, "~")
+    .replace(/＃/g, "#")
+    .replace(/ｂ(?=[０-９0-9])/g, "b")
+    .replace(/，/g, ",")
+    .replace(/－/g, "-")
+    .replace(/．/g, ".")
+    .replace(/＾/g, "^")
+    .replace(/′/g, "'");
+  line = normalized;
   while (i < line.length) {
     const c = line[i];
     if (c === " " || c === "\t") {
@@ -54,7 +70,15 @@ export function tokenizeLine(line: string): LexResult {
       continue;
     }
     spaceRun = 0;
-    if (c === "|") {
+    // 显式时值后缀 :基础拍数/减时线层数，供无损文本导出。
+    if (c === ":") {
+      const match = /^:([0-9]+(?:\.[0-9]+)?)\/([0-9]+)/.exec(line.slice(i));
+      if (!match || Number(match[1]) <= 0) throw new SyntaxError(`位置 ${i}：时值后缀格式错误`);
+      tokens.push({ t: "duration", beats: Number(match[1]), underline: Number(match[2]) });
+      i += match[0].length;
+      continue;
+    }
+    if (c === "|" || c === "│") {
       if (line[i + 1] === "|") {
         tokens.push({ t: "bar", double: true });
         i += 2;
@@ -143,6 +167,7 @@ function isSounding(n: Notation): boolean {
  */
 function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: Notation[]; lyrics: string[] | null } {
   const notations: Notation[] = [];
+  const explicitDurations = new Map<Notation, { beats: number; underline: number }>();
   // 待连接的 tie：前一音符引用
   let pendingTieFrom: Notation | null = null;
   // 当前拍区间的音符（不含延音线）
@@ -152,11 +177,13 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
 
   const flushBeat = () => {
     if (beatNotes.length === 0) return;
-    const lines = beatNotes.length > 1 ? beatNotes.length - 1 : 0;
+    // 减时线视觉上限 3 层（简谱惯例）；真实时值仍记 beatFrac=1/n
+    const lines = beatNotes.length > 1 ? Math.min(3, beatNotes.length - 1) : 0;
     for (const n of beatNotes) {
       n.underline = lines;
-      // 真实时值：组内 n 音平分一拍（三连音 1/3、四连音 1/4…），单音 1 拍
-      n.beatFrac = 1 / beatNotes.length;
+      // 真实时值：组内 n 音平分一拍（三连音 1/3、四连音 1/4…），单音 1 拍；
+      // 附点音（. 后缀）不参与平分——附点是显式时值意图（1.5 拍），保留
+      n.beatFrac = n.dotted ? 1.5 : 1 / beatNotes.length;
     }
     beatNotes = [];
   };
@@ -180,14 +207,26 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
       }
       notations.push(n);
       beatNotes.push(n);
+    } else if (tk.t === "duration") {
+      const prev = notations.at(-1);
+      if (!prev || prev.note === "│" || prev.note === DOUBLE_BAR) throw new SyntaxError("时值后缀前需要音符或延音线");
+      explicitDurations.set(prev, { beats: tk.beats, underline: tk.underline });
     } else if (tk.t === "extend") {
       const ext = createExtend();
       const prev = notations[notations.length - 1] ?? null;
       extendsToFix.push({ ext, prev: prev && isSounding(prev) ? prev : null });
+      // 连音线挂起时，延音线是 tie 的直接延续（1~ - → 连到 ─，音持续不重起）
+      if (pendingTieFrom) {
+        pendingTieFrom.tieTo = ext.key;
+        ext.tieTo = pendingTieFrom.key;
+        pendingTieFrom = null;
+      }
       notations.push(ext);
       flushBeat(); // 延音线自成一拍单元，重置区间
     } else if (tk.t === "bar") {
       flushBeat();
+      // 小节线打断挂起的连音线（跨线另起音高，不自动连）
+      pendingTieFrom = null;
       notations.push(createBar(tk.double ? DOUBLE_BAR : "│"));
     } else if (tk.t === "tie") {
       const prev = notations[notations.length - 1];
@@ -199,6 +238,10 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
   flushBeat();
   // 继承层数：延音线与其延续的前一音符同层（延音线自成一拍，beatFrac=1 由 createExtend 默认）
   for (const { ext, prev } of extendsToFix) ext.underline = prev ? prev.underline : 0;
+  for (const [note, duration] of explicitDurations) {
+    note.beatFrac = duration.beats;
+    note.underline = duration.underline;
+  }
   // 歌词对齐：与「发声符号」（音符+延音线）逐个对应，词序按此摊派；`-` 或缺词留空
   if (pendingLyrics) {
     const lyrics: string[] = [];
