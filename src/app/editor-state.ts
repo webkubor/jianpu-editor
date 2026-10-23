@@ -499,6 +499,7 @@ export class EditorState {
 
   /** 整谱转到目标调 */
   transposeTo(destTone: string): void {
+    if (destTone === this.scoreValue.tone) return; // 同值重复触发（select change 双发）不进历史
     this.snapshot();
     const next: Score = {
       ...this.scoreValue,

@@ -741,3 +741,14 @@ test("复制小节：⌘D 克隆光标所在小节插到其后，歌词随行，
   st.undo();
   assert.equal(st.score.paragraphs[0].notations.length, 5); // 1 2 | 3 4
 });
+
+test("转调同值早退：重复选同一调不产生多余快照", async () => {
+  const { EditorState } = await import("../app/editor-state.ts");
+  const st = new EditorState(compileScore("1 2"));
+  st.transposeTo("G");
+  st.transposeTo("G");
+  st.transposeTo("G");
+  st.undo();
+  assert.equal(st.score.tone, "C"); // 一次 undo 即回到原调
+  assert.equal(st.canUndo, false);
+});
