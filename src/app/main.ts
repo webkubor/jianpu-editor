@@ -5,9 +5,10 @@
  */
 
 import { EditorState } from "./editor-state.ts";
-import { renderScore } from "../render/svg-render.ts";
+import { renderScore, renderScoreSvg } from "../render/svg-render.ts";
 import { Player, compileEvents } from "../core/player.ts";
 import { compileScore } from "../core/dsl.ts";
+import { validateScore } from "../core/validate.ts";
 import { Score, createScore } from "../core/model.ts";
 import { autosave, deserializeScore, downloadScore, loadAutosave } from "../core/serialize.ts";
 
@@ -34,13 +35,17 @@ function selectedKey(): string | null {
   return state.currentItem?.key ?? null;
 }
 
-/** 渲染 + 自动保存 */
+/** 渲染 + 自动保存 + 拍数校验 */
 function refresh(): void {
   renderScore(canvas, state.score, selectedKey());
   autosave(state.score);
   toneSelect.value = state.score.tone;
   speedInput.value = String(state.score.speed);
-  statusEl.textContent = `${state.score.title} · ${state.score.paragraphs.length} 段 · 光标 段${state.paragraphIndex + 1}/位${state.itemIndex}`;
+  const issues = validateScore(state.score);
+  const warn = issues.length
+    ? ` · ⚠ ${issues.length} 个小节拍数异常（${issues.slice(0, 2).map((i) => `段${i.paragraph + 1}小节${i.bar + 1}:${i.beats}/${i.expected}拍`).join("、")}）`
+    : "";
+  statusEl.textContent = `${state.score.title} · ${state.score.paragraphs.length} 段 · 光标 段${state.paragraphIndex + 1}/位${state.itemIndex}${warn}`;
 }
 state.subscribe(refresh);
 
@@ -212,6 +217,45 @@ function toDsl(score: Score): string {
 
 document.getElementById("save")?.addEventListener("click", () => {
   downloadScore(state.score);
+});
+
+/** 打印/导出 PNG：SVG 序列化 → 离屏 canvas → 下载 */
+document.getElementById("export-png")?.addEventListener("click", () => {
+  const svg = renderScoreSvg(state.score, null);
+  const xml = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    const scale = 2; // 2x 高清
+    const cv = document.createElement("canvas");
+    cv.width = 860 * scale;
+    cv.height = (svg.viewBox.baseVal.height || 400) * scale;
+    const ctx = cv.getContext("2d")!;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    URL.revokeObjectURL(url);
+    const a = document.createElement("a");
+    a.href = cv.toDataURL("image/png");
+    a.download = `${state.score.title || "简谱"}.png`;
+    a.click();
+  };
+  img.src = url;
+});
+
+/** 打印：新窗口只含乐谱 SVG，触发打印对话框 */
+document.getElementById("print")?.addEventListener("click", () => {
+  const svg = renderScoreSvg(state.score, null);
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head><title>${state.score.title}</title>
+    <style>body{margin:24px;font-family:"Songti SC",serif}svg{max-width:100%}@media print{body{margin:0}}</style>
+    </head><body></body></html>`);
+  w.document.body.appendChild(w.document.importNode(svg, true));
+  w.document.close();
+  w.focus();
+  w.print();
 });
 
 /** 打开 .jianpu.json */

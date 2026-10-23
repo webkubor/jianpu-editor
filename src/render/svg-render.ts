@@ -157,19 +157,18 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
 /** 渲染整份乐谱到一个容器 */
 export function renderScore(container: HTMLElement, score: Score, selectedKey: string | null): void {
   container.innerHTML = "";
+  container.appendChild(renderScoreSvg(score, selectedKey));
+}
+
+/** 渲染为独立 SVG 元素（画布与打印导出共用） */
+export function renderScoreSvg(score: Score, selectedKey: string | null = null): SVGSVGElement {
   const pageWidth = 860;
   const svg = el("svg", {
     viewBox: `0 0 ${pageWidth} 400`,
     width: "100%",
     class: "score-svg",
+    xmlns: "http://www.w3.org/2000/svg",
   });
-  // 标题
-  svg.appendChild(el("text", {
-    x: pageWidth / 2, y: 44,
-    "text-anchor": "middle",
-    "font-size": LAYOUT.titleFontSize,
-    "font-weight": "bold",
-  }, score.title));
   // 调号/拍号/速度行
   const header = `1 = ${score.tone}    ${score.beat[0]}/${score.beat[1]}    ♩= ${score.speed}`;
   svg.appendChild(el("text", {
@@ -219,5 +218,5 @@ export function renderScore(container: HTMLElement, score: Score, selectedKey: s
     yOffset += LAYOUT.lineHeight;
   }
   svg.setAttribute("viewBox", `0 0 ${pageWidth} ${yOffset + 40}`);
-  container.appendChild(svg);
+  return svg;
 }

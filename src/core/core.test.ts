@@ -172,3 +172,15 @@ test("player：♭B 调 do 是 B♭", () => {
   const events = compileEvents(score);
   assert.equal(events[0].midi, 70); // B♭4
 });
+
+test("validateScore：4/4 小节拍数校验", async () => {
+  const { validateScore } = await import("./validate.ts");
+  const { compileScore } = await import("./dsl.ts");
+  const ok = compileScore("1 - - - | 5 - - - ‖");
+  assert.deepEqual(validateScore(ok), []); // 每小节 4 拍 ✓
+  const bad = compileScore("1 - - | 5 - - - ‖"); // 第一小节 3 拍 ✗
+  const issues = validateScore(bad);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].beats, 3);
+  assert.equal(issues[0].expected, 4);
+});
