@@ -9,7 +9,7 @@ import { renderScore } from "../render/svg-render.ts";
 import { Player, compileEvents } from "../core/player.ts";
 import { compileScore } from "../core/dsl.ts";
 import { Score, createScore } from "../core/model.ts";
-import { autosave, downloadScore, loadAutosave } from "../core/serialize.ts";
+import { autosave, deserializeScore, downloadScore, loadAutosave } from "../core/serialize.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
 function initialScore() {
@@ -103,13 +103,22 @@ window.addEventListener("keydown", (e) => {
       state.toggleDotted();
       e.preventDefault();
       break;
+    case "l":
+    case "L": {
+      // 歌词：弹出行内输入，回车写入当前符号
+      const word = window.prompt("歌词（写入光标左边发声符号；留空清除）", state.currentLyric);
+      if (word !== null) state.setLyric(word.trim());
+      e.preventDefault();
+      break;
+    }
     case "Enter": {
       // 播放/停止
       if (player.playing) {
         player.stop();
+        clearHighlight();
       } else {
         const score = state.score;
-        player.play(compileEvents(score), { onNote: (i) => highlightIndex(i), onEnd: clearHighlight });
+        player.play(compileEvents(score), { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
       }
       e.preventDefault();
       break;
@@ -119,20 +128,11 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-/** 播放高亮：给第 index 个发声符号加 class */
-function highlightIndex(index: number): void {
+/** 播放高亮：给段落 p 的第 index 个符号加 class */
+function highlightIndex(index: number, paragraph: number): void {
   clearHighlight();
-  const glyphs = canvas.querySelectorAll(".glyph");
-  // 发声符号（音符+延音线）与 glyph 的对应：全部符号都在 glyph 里，需要按发声过滤
-  let sounding = -1;
-  for (let i = 0; i < state.paragraph.notations.length && state.paragraphIndex < state.score.paragraphs.length; i += 1) {
-    const n = state.paragraph.notations[i];
-    if (n.note >= "1" && n.note <= "7") sounding += 1;
-    if (i === index) break;
-  }
-  // 简化：直接用 index 找发声音符（V1 只按音符计数）
-  const target = glyphs[sounding >= 0 ? sounding : index];
-  target?.classList.add("playing");
+  const row = canvas.querySelectorAll(".paragraph")[paragraph];
+  row?.querySelectorAll(".glyph")[index]?.classList.add("playing");
 }
 
 function clearHighlight(): void {
@@ -165,47 +165,79 @@ document.getElementById("export-dsl")?.addEventListener("click", () => {
   dslArea.value = toDsl(state.score);
 });
 
-/** 乐谱 → DSL 反投影（V1：按双空格拍推断重排） */
+/** 乐谱 → DSL 反投影：升降号/连音线/歌词全量保留，按 4 单元重排拍分组 */
 function toDsl(score: Score): string {
   const lines: string[] = [];
   for (const para of score.paragraphs) {
     let line = "";
+    const words: string[] = [];
     let beatCount = 0;
+    const tieDone = new Set<string>();
     for (const n of para.notations) {
       if (n.note >= "1" && n.note <= "7") {
-        let token = n.note;
+        let token = n.prefixAccidentals.join("").replace("♯", "#").replace("♭", "b");
+        token += n.note;
         token += "^".repeat(Math.max(0, n.octave));
         token += ",".repeat(Math.max(0, -n.octave));
         token += n.dotted ? "." : "";
+        // 连音线（只输出一次，两向 key 去重）
+        if (n.tieTo && !tieDone.has(n.key)) {
+          token += "~";
+          tieDone.add(n.tieTo);
+        }
         line += (line ? " " : "") + token;
         beatCount += 1;
+        words.push(para.lyrics[words.length] ?? "");
       } else if (n.note === "─") {
         line += (line ? " " : "") + "-";
         beatCount += 1;
+        words.push(para.lyrics[words.length] ?? "");
       } else if (n.note === "│" || n.note === "‖") {
-        line += n.note;
+        line += (line ? " " : "") + n.note;
         beatCount = 0;
       }
-      // 每 4 个时值单元插双空格（V1 简化拍分组）
+      // 每 4 个时值单元插双空格（拍分组重排）
       if (beatCount === 4) {
         line += "  ";
         beatCount = 0;
       }
     }
     lines.push(line.trim());
+    if (words.some((w) => w !== "")) {
+      lines.push(`[词:${words.map((w) => (w === "" ? "-" : w)).join(" ")}]`);
+    }
   }
-  return lines.join("\n\n");
+  return lines.join("\n");
 }
 
 document.getElementById("save")?.addEventListener("click", () => {
   downloadScore(state.score);
 });
 
+/** 打开 .jianpu.json */
+document.getElementById("open")?.addEventListener("change", (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const score = deserializeScore(String(reader.result));
+    if (score) {
+      state.replaceScore(score);
+    } else {
+      statusEl.textContent = "文件格式不对：需要 .jianpu.json（本编辑器导出的）";
+    }
+    input.value = "";
+  };
+  reader.readAsText(file);
+});
+
 document.getElementById("play")?.addEventListener("click", () => {
   if (player.playing) {
     player.stop();
+    clearHighlight();
   } else {
-    player.play(compileEvents(state.score), { onNote: (i) => highlightIndex(i), onEnd: clearHighlight });
+    player.play(compileEvents(state.score), { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
   }
 });
 

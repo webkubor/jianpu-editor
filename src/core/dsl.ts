@@ -9,6 +9,7 @@
  *   #4  b7                                    #=升号 b=降号（也可写 ♯♭）
  *   5. 3.                                     点后缀 = 附点
  *   1~2                                       连音线（tie）
+ *   [词:你 好 吗]                              歌词行（与发声符号逐个对应，- 占位跳过）
  *   双空格 = 拍边界（组结束）。例：「1 2  3 4」= 前一拍两音、后一拍两音。
  *   为兼容手滑，也把 | 与 - 视为组边界。
  */
@@ -21,7 +22,8 @@ export type Token =
   | { t: "note"; digit: string; octave: number; dotted: boolean; accidentals: ("♯" | "♭")[] }
   | { t: "extend" }
   | { t: "bar"; double?: boolean }
-  | { t: "tie" };
+  | { t: "tie" }
+  | { t: "lyrics"; words: string[] };
 
 /**
  * 词法分析：把 DSL 行切成 token 流。
@@ -77,6 +79,17 @@ export function tokenizeLine(line: string): LexResult {
       i += 1;
       continue;
     }
+    // 歌词行：[词:…]，token 数与后续音符行对齐（空格分隔，- 表示无词）
+    if (c === "[") {
+      const close = line.indexOf("]", i);
+      if (close < 0) throw new SyntaxError(`位置 ${i}：歌词行 [词: 缺右括号 ]`);
+      const body = line.slice(i + 1, close);
+      const colon = body.indexOf(":");
+      const words = (colon >= 0 ? body.slice(colon + 1) : body).trim().split(/\s+/).filter(Boolean);
+      tokens.push({ t: "lyrics", words });
+      i = close + 1;
+      continue;
+    }
     // 前缀 ^：高八度记号（^1 = 高音 do），并到下一个音符上
     if (c === "^") {
       pendingOctaveUp = true;
@@ -128,12 +141,14 @@ function isSounding(n: Notation): boolean {
  *   （简谱惯例：5 - 中延音线不带线；这里延音线一律 0 层，只有音符参与推断）。
  * - 区间内恰 1 个音 → 四分音符，0 层。
  */
-function compileTokens(tokens: Token[], beatBreaks: Set<number>): Notation[] {
+function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: Notation[]; lyrics: string[] | null } {
   const notations: Notation[] = [];
   // 待连接的 tie：前一音符引用
   let pendingTieFrom: Notation | null = null;
   // 当前拍区间的音符（不含延音线）
   let beatNotes: Notation[] = [];
+  // 歌词（本行有 [词:…] 时启用对齐）
+  let pendingLyrics: string[] | null = null;
 
   const flushBeat = () => {
     if (beatNotes.length === 0) return;
@@ -173,27 +188,62 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): Notation[] {
     } else if (tk.t === "tie") {
       const prev = notations[notations.length - 1];
       if (prev && isSounding(prev)) pendingTieFrom = prev;
+    } else if (tk.t === "lyrics") {
+      pendingLyrics = tk.words;
     }
   });
   flushBeat();
   // 继承层数：延音线与其延续的前一音符同层
   for (const { ext, prev } of extendsToFix) ext.underline = prev ? prev.underline : 0;
-  return notations;
+  // 歌词对齐：与「发声符号」（音符+延音线）逐个对应，词序按此摊派；`-` 或缺词留空
+  if (pendingLyrics) {
+    const lyrics: string[] = [];
+    let w = 0;
+    for (const n of notations) {
+      if (isSounding(n)) {
+        const word = pendingLyrics[w];
+        lyrics.push(word && word !== "-" ? word : "");
+        w += 1;
+      }
+    }
+    return { notations, lyrics };
+  }
+  return { notations, lyrics: null };
 }
 
 /** 编译一行 DSL → 段落 */
 export function compileLine(line: string): Paragraph {
   const { tokens, beatBreaks } = tokenizeLine(line);
-  const notations = compileTokens(tokens, beatBreaks);
-  return createParagraph(notations);
+  const { notations, lyrics } = compileTokens(tokens, beatBreaks);
+  const para = createParagraph(notations);
+  if (lyrics) para.lyrics = lyrics;
+  return para;
 }
 
-/** 编译整份 DSL 文本 → 乐谱（空行分段） */
+/** 编译整份 DSL 文本 → 乐谱：音符行分段；[词:…] 行修饰其上方最近的音符行（可多行叠加） */
 export function compileScore(dsl: string, base?: Partial<Score>): Score {
   const score = createScore(base);
-  score.paragraphs = dsl
-    .split(/\n/)
-    .filter((l) => l.trim() !== "")
-    .map((l) => compileLine(l));
+  const paras: Paragraph[] = [];
+  for (const raw of dsl.split(/\n/)) {
+    const line = raw.trim();
+    if (line === "") continue;
+    if (/^\[词[:：]/.test(line)) {
+      // 词行：并入上一个已有段落（没有则忽略）
+      const target = paras[paras.length - 1];
+      if (!target) continue;
+      const { tokens } = tokenizeLine(line);
+      const lyricsTk = tokens.find((t): t is Extract<Token, { t: "lyrics" }> => t.t === "lyrics");
+      if (lyricsTk) {
+        const merged = [...target.lyrics];
+        lyricsTk.words.forEach((w, i) => {
+          merged[i] = w === "-" ? merged[i] ?? "" : w;
+        });
+        target.lyrics = merged;
+      }
+      continue;
+    }
+    paras.push(compileLine(line));
+  }
+  score.paragraphs = paras;
   return score;
 }

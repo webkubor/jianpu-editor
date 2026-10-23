@@ -74,6 +74,26 @@ test("compileLine：tie 建立双向连接", () => {
   assert.equal(b.tieTo, a.key);
 });
 
+test("compileLine：歌词行对齐发声符号，- 占位跳过", () => {
+  const para = compileLine("[词:你 好 - 吗] 1 2 - 3");
+  // 发声符号：1 2 - 3 → 4 个词位；第三个 - 占位跳过
+  assert.deepEqual(para.lyrics, ["你", "好", "", "吗"]);
+  assert.equal(para.notations.length, 4);
+});
+
+test("compileLine：无歌词行 lyrics 为空", () => {
+  const para = compileLine("1 2 3");
+  assert.deepEqual(para.lyrics, []);
+});
+
+test("compileScore：词行修饰上方最近音符行", async () => {
+  const { compileScore } = await import("./dsl.ts");
+  const score = compileScore("1 2 3\n[词:你 好 -]\n5 6");
+  assert.equal(score.paragraphs.length, 2);
+  assert.deepEqual(score.paragraphs[0].lyrics, ["你", "好", ""]);
+  assert.deepEqual(score.paragraphs[1].lyrics, []);
+});
+
 test("transpose：C→D 全体 +2 半音，3 升 E 不带号", () => {
   const score = createScore({ tone: "C" });
   score.paragraphs[0].notations = [

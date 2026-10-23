@@ -7,7 +7,7 @@
  * - 段落两端对齐：段内间隙 = (页宽 - 实宽) / (符号数-1)。
  */
 
-import { EXTEND, Notation, Score } from "../core/model.ts";
+import { EXTEND, isPitchable, Notation, Score } from "../core/model.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
@@ -34,6 +34,9 @@ export const LAYOUT = {
   pageMarginX: 48,
   titleFontSize: 26,
   headerFontSize: 15,
+  /** 歌词字号与基线偏移 */
+  lyricFontSize: 15,
+  lyricDy: 34,
 } as const;
 
 /** 离屏 canvas 文本测宽（模块级单例） */
@@ -192,9 +195,24 @@ export function renderScore(container: HTMLElement, score: Score, selectedKey: s
       : 0;
     let x = LAYOUT.pageMarginX;
     const row = el("g", { class: "paragraph", transform: `translate(0, ${yOffset})` });
+    // 发声符号序号（歌词对齐用）
+    let soundingIdx = -1;
     glyphs.forEach((g) => {
       const cx = x + g.width / 2;
       row.appendChild(renderGlyph(g, cx, 0, g.n.key === selectedKey));
+      // 歌词：仅发声符号（音符/延音线）有词位
+      if (isPitchable(g.n) || g.n.note === EXTEND) {
+        soundingIdx += 1;
+        const word = para.lyrics[soundingIdx] ?? "";
+        if (word) {
+          row.appendChild(el("text", {
+            x: cx, y: LAYOUT.lyricDy,
+            "text-anchor": "middle",
+            "font-size": LAYOUT.lyricFontSize,
+            class: "lyric",
+          }, word));
+        }
+      }
       x += g.width + flex;
     });
     svg.appendChild(row);

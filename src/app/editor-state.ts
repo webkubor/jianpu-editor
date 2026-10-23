@@ -14,6 +14,7 @@ import {
   createBar,
   createExtend,
   createNote,
+  createParagraph,
 } from "../core/model.ts";
 import { transpose, transposeTo } from "../core/transpose.ts";
 
@@ -47,9 +48,13 @@ export class EditorState {
     return this.itemIdx;
   }
 
-  /** 当前段落（越界保护） */
+  /** 当前段落（越界保护；空谱时先补一个空段） */
   get paragraph(): Paragraph {
     const paras = this.scoreValue.paragraphs;
+    if (paras.length === 0) {
+      paras.push(createParagraph());
+      this.paraIdx = 0;
+    }
     const idx = Math.min(this.paraIdx, paras.length - 1);
     return paras[Math.max(0, idx)];
   }
@@ -171,6 +176,42 @@ export class EditorState {
     this.replaceParagraphNotations(items);
   }
 
+  /** 设置光标左边音符的歌词（空串 = 清除） */
+  setLyric(text: string): void {
+    const prev = this.currentItem;
+    if (!prev) return;
+    this.snapshot();
+    const para = this.paragraph;
+    const items = [...para.notations];
+    items[idxSafe(this.itemIdx)] = cloneNotation(prev);
+    // 歌词挂在段落 lyrics 上，按下标对齐发声符号；非发声符号（小节线等）无词
+    let soundingIdx = -1;
+    for (let i = 0; i <= this.itemIdx - 1; i += 1) {
+      const n = items[i];
+      if ((n.note >= "1" && n.note <= "7") || n.note === "─") soundingIdx += 1;
+    }
+    const lyrics = [...para.lyrics];
+    while (lyrics.length <= soundingIdx) lyrics.push("");
+    lyrics[soundingIdx] = text;
+    const paras = [...this.scoreValue.paragraphs];
+    paras[this.paraIdx] = { ...this.paragraph, notations: items, lyrics };
+    this.scoreValue = { ...this.scoreValue, paragraphs: paras };
+    this.emit();
+  }
+
+  /** 光标左边音符的当前歌词 */
+  get currentLyric(): string {
+    const prev = this.currentItem;
+    if (!prev) return "";
+    const para = this.paragraph;
+    let soundingIdx = -1;
+    for (let i = 0; i <= this.itemIdx - 1 && i < para.notations.length; i += 1) {
+      const n = para.notations[i];
+      if ((n.note >= "1" && n.note <= "7") || n.note === "─") soundingIdx += 1;
+    }
+    return para.lyrics[soundingIdx] ?? "";
+  }
+
   /** 整谱转调（相对半音数）——transpose 原地改，先深拷贝再替换 */
   transpose(delta: number): void {
     this.snapshot();
@@ -227,4 +268,9 @@ export class EditorState {
     this.scoreValue = { ...this.scoreValue, paragraphs: paras };
     this.emit();
   }
+}
+
+/** 数组安全下标（永不越界，尾部夹取） */
+function idxSafe(i: number): number {
+  return Math.max(0, i);
 }

@@ -29,6 +29,8 @@ export interface PlayEvent {
   midi: number | null;
   /** 对应符号在段落扁平序列中的下标（用于回放高亮） */
   index: number;
+  /** 所属段落号（跨段高亮定位） */
+  paragraph: number;
 }
 
 /** 时值计算：一拍的秒数 */
@@ -52,29 +54,27 @@ export function compileEvents(score: Score): PlayEvent[] {
   const secPerBeat = beatSeconds(score.speed);
   const midiBase = toneToMidiBase(score.tone);
   let t = 0;
-  let idx = 0;
-  for (const para of score.paragraphs) {
-    for (const n of para.notations) {
+  score.paragraphs.forEach((para, paraIdx) => {
+    para.notations.forEach((n, idx) => {
       if (isPitchable(n)) {
         const acc = (n.prefixAccidentals || []).reduce((a, x) => a + (x === "♯" ? 1 : -1), 0);
         const midi = midiBase + DIGIT_TO_LEVEL[n.note] + acc + 12 * n.octave;
-        events.push({ start: t, duration: noteBeats(n) * secPerBeat * 0.92, midi, index: idx });
+        events.push({ start: t, duration: noteBeats(n) * secPerBeat * 0.92, midi, index: idx, paragraph: paraIdx });
         t += noteBeats(n) * secPerBeat;
       } else if (n.note === EXTEND) {
         // 延音线无声，只推进时间（时值 = 前一音符号基础拍）
         t += secPerBeat / 2 ** Math.max(0, Math.min(3, n.underline));
       }
       // 小节线不占时值
-      idx += 1;
-    }
-  }
+    });
+  });
   return events;
 }
 
 /** 播放器状态回调 */
 export interface PlayerCallbacks {
-  /** 每个音符发声时回调（下标） */
-  onNote?: (index: number) => void;
+  /** 每个音符发声时回调（符号下标、段落号） */
+  onNote?: (index: number, paragraph: number) => void;
   /** 回放结束 */
   onEnd?: () => void;
 }
@@ -83,14 +83,18 @@ export interface PlayerCallbacks {
 export class Player {
   private ctx: AudioContext | null = null;
   private stopFlag = false;
+  /** play() 调用到结束之间的窗口（playing 的真值来源，与按钮 toggle 态一致） */
+  private active = false;
   private timers: number[] = [];
 
   /** 播放事件流 */
   play(events: PlayEvent[], cb: PlayerCallbacks = {}): void {
     this.stop();
     this.stopFlag = false;
+    this.active = true;
     if (!this.ctx) this.ctx = new AudioContext();
     const ctx = this.ctx;
+    void ctx.resume();
     const t0 = ctx.currentTime + 0.05;
     for (const ev of events) {
       if (ev.midi === null) continue;
@@ -99,7 +103,7 @@ export class Player {
       const delayMs = Math.max(0, (at - ctx.currentTime) * 1000);
       this.timers.push(
         window.setTimeout(() => {
-          if (!this.stopFlag) cb.onNote?.(ev.index);
+          if (!this.stopFlag) cb.onNote?.(ev.index, ev.paragraph);
         }, delayMs)
       );
       // 音色：基频 + 2次泛音（音量 0.12/0.04）+ 短Attack/Release
@@ -124,6 +128,7 @@ export class Player {
     const totalMs = (events.length ? events[events.length - 1].start + events[events.length - 1].duration : 0) * 1000 + 300;
     this.timers.push(
       window.setTimeout(() => {
+        this.active = false;
         if (!this.stopFlag) cb.onEnd?.();
       }, totalMs)
     );
@@ -132,6 +137,7 @@ export class Player {
   /** 立即停止 */
   stop(): void {
     this.stopFlag = true;
+    this.active = false;
     for (const t of this.timers) clearTimeout(t);
     this.timers = [];
     if (this.ctx) {
@@ -145,6 +151,6 @@ export class Player {
   }
 
   get playing(): boolean {
-    return !this.stopFlag;
+    return this.active;
   }
 }

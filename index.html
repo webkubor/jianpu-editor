@@ -111,7 +111,7 @@
         <div class="hint">
           <kbd>1</kbd>–<kbd>7</kbd> 音符 · <kbd>空格</kbd> 延音线 · <kbd>|</kbd> 小节线<br/>
           <kbd>←→</kbd> 移动 · <kbd>↑↓</kbd> 换段 · <kbd>Backspace</kbd> 删除<br/>
-          <kbd>+</kbd>/<kbd>-</kbd> 八度 · <kbd>.</kbd> 附点 · <kbd>⌘Z</kbd> 撤销
+          <kbd>+</kbd>/<kbd>-</kbd> 八度 · <kbd>.</kbd> 附点 · <kbd>⌘Z</kbd> 撤销 · <kbd>L</kbd> 歌词
         </div>
       </section>
       <section>
@@ -123,9 +123,15 @@
         </div>
         <div class="hint" style="margin-top:8px">
           空格=拍内分组，<b>双空格=拍边界</b>；<code>-</code>延音 <code>~</code>连音线
-          <code>,</code>低八度 <code>'</code>/<code>^</code>高八度 <code>#</code>/<code>b</code>变音 <code>.</code>附点
+          <code>,</code>低八度 <code>'</code>/<code>^</code>高八度 <code>#</code>/<code>b</code>变音 <code>.</code>附点<br/>
+          歌词行：<code>[词:你 好 吗]</code>（按发声符号逐个对应，不足留空）
         </div>
       </section>
+      <section>
+        <h2>打开文件</h2>
+        <div class="row">
+          <input id="open" type="file" accept=".json,application/json" style="font-size:12px" />
+        </div>
     </aside>
   </main>
   <script type="module" src="/src/app/main.ts"></script>
