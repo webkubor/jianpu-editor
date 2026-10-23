@@ -39,11 +39,11 @@ export function beatSeconds(speed: number): number {
 }
 
 /**
- * 一个音符的时值（以拍为单位）：
- * underline 条减时线 → 基础 1/2^underline 拍；附点 ×1.5。
+ * 一个符号的时值（以拍为单位）：
+ * 优先 beatFrac（组内 n 音平分一拍的真实时值，三连音 1/3）；缺省回退 1/2^underline 折算；附点 ×1.5。
  */
-export function noteBeats(n: { underline: number; dotted: boolean }): number {
-  let beats = 1 / 2 ** Math.max(0, Math.min(3, n.underline));
+export function noteBeats(n: { underline: number; dotted: boolean; beatFrac?: number }): number {
+  let beats = n.beatFrac ?? 1 / 2 ** Math.max(0, Math.min(3, n.underline));
   if (n.dotted) beats *= 1.5;
   return beats;
 }
@@ -62,8 +62,8 @@ export function compileEvents(score: Score): PlayEvent[] {
         events.push({ start: t, duration: noteBeats(n) * secPerBeat * 0.92, midi, index: idx, paragraph: paraIdx });
         t += noteBeats(n) * secPerBeat;
       } else if (n.note === EXTEND) {
-        // 延音线无声，只推进时间（时值 = 前一音符号基础拍）
-        t += secPerBeat / 2 ** Math.max(0, Math.min(3, n.underline));
+        // 延音线无声，只推进时间（自成一拍，或继承前一音 beatFrac 语义——延音线 beatFrac 恒 1）
+        t += noteBeats(n) * secPerBeat;
       }
       // 小节线不占时值
     });

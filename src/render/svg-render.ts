@@ -7,7 +7,7 @@
  * - 段落两端对齐：段内间隙 = (页宽 - 实宽) / (符号数-1)。
  */
 
-import { EXTEND, isPitchable, Notation, Score } from "../core/model.ts";
+import { BAR, DOUBLE_BAR, EXTEND, isPitchable, Notation, Paragraph, Score } from "../core/model.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
@@ -188,35 +188,71 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
   const contentWidth = pageWidth - LAYOUT.pageMarginX * 2;
   for (const para of score.paragraphs) {
     const glyphs = para.notations.map(measureGlyph);
-    const totalWidth = glyphs.reduce((s, g) => s + g.width, 0) - (glyphs.length ? LAYOUT.minGap : 0);
-    const flex = para.alignJustify && glyphs.length > 1 && totalWidth < contentWidth
-      ? (contentWidth - totalWidth) / (glyphs.length - 1)
-      : 0;
-    let x = LAYOUT.pageMarginX;
-    const row = el("g", { class: "paragraph", transform: `translate(0, ${yOffset})` });
-    // 发声符号序号（歌词对齐用）
-    let soundingIdx = -1;
+    // 段内全序下标（含小节线）——播放高亮 data-idx 与 PlayEvent.index 对齐
+    const orderIdx = new Map<Notation, number>();
+    para.notations.forEach((n, i) => orderIdx.set(n, i));
+    // 按内容宽断行：换行点只落在小节线后（行尾小节线，乐谱惯例）；超长无小节线则硬切
+    const rows: (typeof glyphs)[] = [];
+    let cur: typeof glyphs = [];
+    let curWidth = 0;
     glyphs.forEach((g) => {
-      const cx = x + g.width / 2;
-      row.appendChild(renderGlyph(g, cx, 0, g.n.key === selectedKey));
-      // 歌词：仅发声符号（音符/延音线）有词位
-      if (isPitchable(g.n) || g.n.note === EXTEND) {
-        soundingIdx += 1;
-        const word = para.lyrics[soundingIdx] ?? "";
-        if (word) {
-          row.appendChild(el("text", {
-            x: cx, y: LAYOUT.lyricDy,
-            "text-anchor": "middle",
-            "font-size": LAYOUT.lyricFontSize,
-            class: "lyric",
-          }, word));
-        }
+      if (cur.length && curWidth + g.width > contentWidth && (g.n.note === BAR || g.n.note === DOUBLE_BAR || curWidth > contentWidth * 1.5)) {
+        rows.push(cur);
+        cur = [];
+        curWidth = 0;
+        // 行首小节线吞掉（行尾已画）
+        if (g.n.note === BAR || g.n.note === DOUBLE_BAR) return;
       }
-      x += g.width + flex;
+      cur.push(g);
+      curWidth += g.width + LAYOUT.minGap;
     });
-    svg.appendChild(row);
-    yOffset += LAYOUT.lineHeight;
+    if (cur.length) rows.push(cur);
+
+    const paraNo = score.paragraphs.indexOf(para);
+    for (const rowGlyphs of rows) {
+      const totalWidth = rowGlyphs.reduce((s, g) => s + g.width, 0) - (rowGlyphs.length ? LAYOUT.minGap : 0);
+      const flex = para.alignJustify && rowGlyphs.length > 1 && totalWidth < contentWidth
+        ? (contentWidth - totalWidth) / (rowGlyphs.length - 1)
+        : 0;
+      let x = LAYOUT.pageMarginX;
+      const row = el("g", { class: "paragraph", "data-para": String(paraNo), transform: `translate(0, ${yOffset})` });
+      // 发声符号序号（歌词对齐用）——段内全序，跨视觉行连续
+      let soundingIdx = para.lyrics.length ? countSoundingBefore(score, para, rowGlyphs[0]?.n.key ?? "") : 0;
+      rowGlyphs.forEach((g) => {
+        const cx = x + g.width / 2;
+        const glyph = renderGlyph(g, cx, 0, g.n.key === selectedKey);
+        glyph.setAttribute("data-idx", String(orderIdx.get(g.n) ?? -1));
+        row.appendChild(glyph);
+        // 歌词：仅发声符号（音符/延音线）有词位
+        if (isPitchable(g.n) || g.n.note === EXTEND) {
+          soundingIdx += 1;
+          const word = para.lyrics[soundingIdx - 1] ?? "";
+          if (word) {
+            row.appendChild(el("text", {
+              x: cx, y: LAYOUT.lyricDy,
+              "text-anchor": "middle",
+              "font-size": LAYOUT.lyricFontSize,
+              class: "lyric",
+            }, word));
+          }
+        }
+        x += g.width + flex;
+      });
+      svg.appendChild(row);
+      yOffset += LAYOUT.lineHeight;
+    }
   }
   svg.setAttribute("viewBox", `0 0 ${pageWidth} ${yOffset + 40}`);
   return svg;
+}
+
+/** 统计段内某符号之前的发声符号数（歌词跨行对齐用） */
+function countSoundingBefore(score: Score, para: Paragraph, key: string): number {
+  const list = score.paragraphs.find((p) => p === para)?.notations ?? [];
+  let count = 0;
+  for (const n of list) {
+    if (n.key === key) break;
+    if (isPitchable(n) || n.note === EXTEND) count += 1;
+  }
+  return count;
 }

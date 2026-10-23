@@ -40,6 +40,8 @@ export interface Notation {
   topDecorators: TopDecorator[];
   /** 连音线：指向同段落另一音符的 key（双向） */
   tieTo: string | null;
+  /** 真实时值（拍）：组内 n 音平分一拍时为 1/n（如三连音 1/3）；缺省回退 1/2^underline 折算 */
+  beatFrac?: number;
 }
 
 /** 段落（一行乐谱） */

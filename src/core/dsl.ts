@@ -153,7 +153,11 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
   const flushBeat = () => {
     if (beatNotes.length === 0) return;
     const lines = beatNotes.length > 1 ? beatNotes.length - 1 : 0;
-    for (const n of beatNotes) n.underline = lines;
+    for (const n of beatNotes) {
+      n.underline = lines;
+      // 真实时值：组内 n 音平分一拍（三连音 1/3、四连音 1/4…），单音 1 拍
+      n.beatFrac = 1 / beatNotes.length;
+    }
     beatNotes = [];
   };
 
@@ -193,7 +197,7 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
     }
   });
   flushBeat();
-  // 继承层数：延音线与其延续的前一音符同层
+  // 继承层数：延音线与其延续的前一音符同层（延音线自成一拍，beatFrac=1 由 createExtend 默认）
   for (const { ext, prev } of extendsToFix) ext.underline = prev ? prev.underline : 0;
   // 歌词对齐：与「发声符号」（音符+延音线）逐个对应，词序按此摊派；`-` 或缺词留空
   if (pendingLyrics) {

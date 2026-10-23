@@ -39,6 +39,7 @@ export function deserializeScore(json: string): Score | null {
           prefixAccidentals: Array.isArray(n.prefixAccidentals) ? n.prefixAccidentals : [],
           topDecorators: Array.isArray(n.topDecorators) ? n.topDecorators : [],
           tieTo: n.tieTo ? String(n.tieTo) : null,
+          beatFrac: typeof n.beatFrac === "number" && n.beatFrac > 0 ? n.beatFrac : undefined,
         })),
       })),
     };

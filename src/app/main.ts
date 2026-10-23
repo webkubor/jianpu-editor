@@ -133,11 +133,13 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-/** 播放高亮：给段落 p 的第 index 个符号加 class */
+/** 播放高亮：按 data-para/data-idx 定位符号（跨视觉行稳定） */
 function highlightIndex(index: number, paragraph: number): void {
   clearHighlight();
-  const row = canvas.querySelectorAll(".paragraph")[paragraph];
-  row?.querySelectorAll(".glyph")[index]?.classList.add("playing");
+  const target = [...canvas.querySelectorAll(".paragraph")]
+    .find((row) => row.getAttribute("data-para") === String(paragraph))
+    ?.querySelector(`.glyph[data-idx="${index}"]`);
+  target?.classList.add("playing");
 }
 
 function clearHighlight(): void {

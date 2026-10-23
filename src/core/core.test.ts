@@ -184,3 +184,19 @@ test("validateScore：4/4 小节拍数校验", async () => {
   assert.equal(issues[0].beats, 3);
   assert.equal(issues[0].expected, 4);
 });
+
+test("beatFrac：组内 n 音真实时值 1/n（三连音 1/3 拍）", async () => {
+  const { compileScore } = await import("./dsl.ts");
+  const { noteBeats, compileEvents } = await import("./player.ts");
+  const score = compileScore("1 2 3  1 2 3  1 2 3  1 2 3 ‖", { speed: 60 });
+  const [a] = score.paragraphs[0].notations;
+  assert.ok(Math.abs(a.beatFrac! - 1 / 3) < 1e-9);
+  assert.ok(Math.abs(noteBeats({ underline: 2, dotted: false, beatFrac: 1 / 3 }) - 1 / 3) < 1e-9);
+  const ev = compileEvents(score);
+  assert.ok(Math.abs(ev[0].duration - (1 / 3) * 0.92) < 1e-9); // speed 60 → 1 拍 1s
+  // 4 组三连音 = 4 拍小节 → 校验不再误报
+  const { validateScore } = await import("./validate.ts");
+  assert.deepEqual(validateScore(score), []);
+  // 无 beatFrac 回退减时线折算（旧数据兼容）
+  assert.ok(Math.abs(noteBeats({ underline: 2, dotted: false }) - 0.25) < 1e-9);
+});
