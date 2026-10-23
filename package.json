@@ -1,0 +1,18 @@
+{
+  "name": "jianpu-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "轻量所见即所得简谱编辑器：零运行时依赖，SVG 排版 + 本地保存",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test src/core/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}

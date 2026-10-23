@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>简谱编辑器</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1a1a1a;
+      --paper: #faf8f4;
+      --accent: #c2410c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Songti SC", system-ui, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      border-bottom: 1px solid #e2ddd2;
+      background: #fff;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 18px; margin: 0 12px 0 0; }
+    header label { font-size: 13px; color: #666; }
+    header select, header input[type="number"] {
+      font-size: 13px;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    header input[type="number"] { width: 64px; }
+    button {
+      font-size: 13px;
+      padding: 5px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    #status {
+      margin-left: auto;
+      font-size: 12px;
+      color: #999;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    #canvas { background: #fff; border: 1px solid #e2ddd2; border-radius: 8px; min-height: 400px; padding: 8px; }
+    .score-svg { color: var(--ink); display: block; }
+    .score-svg .glyph { cursor: pointer; }
+    .score-svg .glyph.selected { fill: var(--accent); }
+    .score-svg .glyph.playing { fill: var(--accent); }
+    aside { display: flex; flex-direction: column; gap: 12px; }
+    aside section {
+      background: #fff;
+      border: 1px solid #e2ddd2;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    aside h2 { font-size: 14px; margin: 0 0 8px; color: #444; }
+    aside textarea {
+      width: 100%;
+      height: 140px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 6px;
+      resize: vertical;
+    }
+    .hint { font-size: 12px; color: #888; line-height: 1.7; }
+    .hint kbd {
+      background: #f0ece2;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 11px;
+    }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>简谱编辑器</h1>
+<label>调 <select id="tone"><option value="♭A">1=♭A</option><option value="A">1=A</option><option value="♭B">1=♭B</option><option value="B">1=B</option><option value="C" selected>1=C</option><option value="♭D">1=♭D</option><option value="D">1=D</option><option value="♭E">1=♭E</option><option value="E">1=E</option><option value="F">1=F</option><option value="♭G">1=♭G</option><option value="G">1=G</option></select></label>
+    <label>速度 <input id="speed" type="number" min="20" max="240" value="72" /></label>
+    <button id="transpose-down">♭降半音</button>
+    <button id="transpose-up">♯升半音</button>
+    <button id="play">▶ 播放 (Enter)</button>
+    <button id="save">⬇ 保存 .json</button>
+    <span id="status"></span>
+  </header>
+  <main>
+    <div id="canvas"></div>
+    <aside>
+      <section>
+        <h2>键盘速记</h2>
+        <div class="hint">
+          <kbd>1</kbd>–<kbd>7</kbd> 音符 · <kbd>空格</kbd> 延音线 · <kbd>|</kbd> 小节线<br/>
+          <kbd>←→</kbd> 移动 · <kbd>↑↓</kbd> 换段 · <kbd>Backspace</kbd> 删除<br/>
+          <kbd>+</kbd>/<kbd>-</kbd> 八度 · <kbd>.</kbd> 附点 · <kbd>⌘Z</kbd> 撤销
+        </div>
+      </section>
+      <section>
+        <h2>DSL 灌入 / 导出</h2>
+        <textarea id="dsl" placeholder="6, 1 2 3  5 - 3 | 2 - - ‖"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button id="apply-dsl">导入</button>
+          <button id="export-dsl">导出到文本</button>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          空格=拍内分组，<b>双空格=拍边界</b>；<code>-</code>延音 <code>~</code>连音线
+          <code>,</code>低八度 <code>'</code>/<code>^</code>高八度 <code>#</code>/<code>b</code>变音 <code>.</code>附点
+        </div>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="/src/app/main.ts"></script>
+</body>
+</html>
