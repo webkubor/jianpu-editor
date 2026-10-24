@@ -123,6 +123,10 @@ window.addEventListener("keydown", (e) => {
     } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") {
       state.duplicateMeasure();
       e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s") {
+      downloadScore(state.score); // ⌘S 快速保存工程文件
+      statusEl.textContent = `已保存：${state.score.title}.jianpu.json`;
+      e.preventDefault();
     } else if ((e.metaKey || e.ctrlKey) && e.key === "ArrowLeft") {
       state.moveToBoundary(false); // ⌘← 跳到段首
       e.preventDefault();
