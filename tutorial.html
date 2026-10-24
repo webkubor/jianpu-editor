@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>简谱打谱与连音线手把手教程 · 简谱编辑器</title>
+  <meta name="description" content="零门槛掌握网页简谱编辑器打谱技巧：音符节拍输入、连音线与延音线区别、三连音排版、中文歌词实时对齐与快捷操作指引。" />
+  <style>
+    :root {
+      --accent: oklch(55% 0.18 25);
+      --accent-soft: color-mix(in oklch, var(--accent), transparent 90%);
+      --bg: oklch(97% 0.005 25);
+      --card-bg: #ffffff;
+      --text: oklch(25% 0.02 25);
+      --text-sec: oklch(46% 0.02 25);
+      --border: color-mix(in oklch, var(--text), transparent 88%);
+      --font-serif: "Songti SC", "Source Han Serif CN", "Noto Serif CJK SC", "SimSun", serif;
+      --font-sans: "PingFang SC", "MiSans", system-ui, -apple-system, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+    header {
+      margin-bottom: 36px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      transition: transform 0.15s ease;
+    }
+    .back-link:hover { transform: translateX(-2px); }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: var(--text-sec);
+      margin: 0;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    }
+    h2 {
+      font-family: var(--font-serif);
+      font-size: 20px;
+      margin: 0 0 16px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 {
+      font-size: 16px;
+      margin: 18px 0 8px;
+      color: var(--text);
+    }
+    p, li {
+      font-size: 14px;
+      color: var(--text-sec);
+    }
+    kbd {
+      background: color-mix(in oklch, var(--text), transparent 94%);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.08);
+    }
+    .demo-box {
+      background: color-mix(in oklch, var(--text), transparent 96%);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 12px 0;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .demo-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    @media (max-width: 640px) {
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+    .tip-callout {
+      border-left: 3px solid var(--accent);
+      padding: 10px 14px;
+      background: var(--accent-soft);
+      border-radius: 0 6px 6px 0;
+      margin: 14px 0;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="./" class="back-link">← 返回简谱编辑器</a>
+      <h1>简谱打谱与连音线手把手教程</h1>
+      <p class="subtitle">专为现代打谱与竹笛/民乐爱好者打造的直觉化打谱指南</p>
+    </header>
+
+    <!-- 1. 最核心：连音线与延音线到底怎么打？ -->
+    <div class="card">
+      <h2>🎼 1. 连音线 (Tie) 与 延音线 (Extend) 的核心区别与打法</h2>
+      <p>初学简谱软件最容易混淆「连音线弧线」与「延音线横线 ─」。在本编辑器中，它们有着明确的逻辑与打法：</p>
+
+      <div class="compare-grid">
+        <div class="demo-box">
+          <div class="demo-title">连音线 (Tie / 弧线 ⌒)</div>
+          <div><b>作用</b>：连接两个音符（如 1 连到 2），或将相同音高持续相连不换气。</div>
+          <div><b>键盘快捷键</b>：光标停在第 1 个音右侧，按 <kbd>~</kbd></div>
+          <div><b>DSL 文本写法</b>：<code>1~  2</code> 或 <code>1~ -</code></div>
+          <div style="color:var(--accent); font-size:12px;">视觉效果：在两音下方画优美的平滑圆弧</div>
+        </div>
+        <div class="demo-box">
+          <div class="demo-title">延音线 (Extend / 横线 ─)</div>
+          <div><b>作用</b>：延长当前音符的时值（一个横线占一整拍）。</div>
+          <div><b>键盘快捷键</b>：直接按键盘 <kbd>空格</kbd></div>
+          <div><b>DSL 文本写法</b>：<code>5 - - -</code>（代表 5 唱四拍）</div>
+          <div style="color:var(--accent); font-size:12px;">视觉效果：直接打出标准加长横线 ─</div>
+        </div>
+      </div>
+
+      <div class="tip-callout">
+        <b>💡 连音线跨延音线（如 1~ - 2）：</b>如果想让连音线一直延续到延音线上，只需先按 <kbd>1</kbd>，按 <kbd>~</kbd>，再按 <kbd>空格</kbd>，连音弧线会自动延伸并贴合延音线！
+      </div>
+    </div>
+
+    <!-- 2. 拍内分组与三连音推断 -->
+    <div class="card">
+      <h2>⏱ 2. 节奏与减时线：空格与双空格的秘密</h2>
+      <p>你不需要手动计算每个音符要画一条还是两条减时线。编辑器采用<b>「节拍智能推断」</b>算法：</p>
+      <ul>
+        <li><b>单空格</b>：同拍平分。两个音中间隔 1 个空格（如 <code>1 2</code>），自动平分一拍（八分音符，自动加 1 条减时线）。</li>
+        <li><b>双空格</b>：代表拍与拍的边界！例如 <code>1 2  3 4</code> 代表前一拍有两个音，后一拍有两个音。</li>
+        <li><b>三连音 (Tuplet)</b>：三个音符连续用单空格隔开（如 <code>1 2 3  5</code>），系统会自动将其识别为三连音（各占 1/3 拍），并在上方排出版级的<b>「带数字 3 的连音括弧」</b>！</li>
+      </ul>
+    </div>
+
+    <!-- 3. 升降调与八度快捷键 -->
+    <div class="card">
+      <h2>🎹 3. 音高与八度微调</h2>
+      <ul>
+        <li><b>升降八度</b>：选中音符按 <kbd>+</kbd> 升八度（加高音点），按 <kbd>-</kbd> 降八度（加低音点）。可叠加多点。</li>
+        <li><b>升降变音</b>：选中音符按 <kbd>#</kbd> 或 <kbd>b</kbd>，可在 <code>无 → ♯ → ♭ → 无</code> 之间循环切换。</li>
+        <li><b>附点音符</b>：选中音符按 <kbd>.</kbd>，立刻切换附点开/关。</li>
+        <li><b>演奏法记号</b>：按分号键 <kbd>;</kbd>，可在 <code>▾ 顿音/跳音 → 𝄐 延长记号 → ⌒ 保持音</code> 之间循环切换。播放时顿音会自动产生短促跳跃感！</li>
+      </ul>
+    </div>
+
+    <!-- 4. 歌词与快速排版 -->
+    <div class="card">
+      <h2>✍️ 4. 中文歌词实时对齐与播放</h2>
+      <ul>
+        <li><b>连续填词模式</b>：按 <kbd>Shift+L</kbd> 进入填词状态，直接用中文输入法打字，候选词上屏后按 <kbd>空格</kbd> 提交并自动跳到下一个音符！</li>
+        <li><b>单字修改</b>：选中某个音符按 <kbd>L</kbd>，弹出提示框单字快速修改。</li>
+        <li><b>DSL 歌词行</b>：在音符下方写入 <code>[词:长 亭 外 - 边]</code>，其中 <code>-</code> 代表延音或跳过该符号，自动与上方音符发音位置精准对齐。</li>
+      </ul>
+    </div>
+
+    <!-- 5. 常用快捷键速查表 -->
+    <div class="card">
+      <h2>⚡ 5. 高频键盘快捷键清单</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <tr style="border-bottom:1px solid var(--border); text-align:left;">
+          <th style="padding:8px 4px;">操作</th>
+          <th style="padding:8px 4px;">快捷键</th>
+          <th style="padding:8px 4px;">说明</th>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 4px;">播放 / 停止</td>
+          <td style="padding:8px 4px;"><kbd>Enter</kbd></td>
+          <td style="padding:8px 4px;">全谱播放；<kbd>Shift+点击播放</kbd> 从光标处试听</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 4px;">复制当前小节</td>
+          <td style="padding:8px 4px;"><kbd>⌘D</kbd> / <kbd>Ctrl+D</kbd></td>
+          <td style="padding:8px 4px;">高频重复旋律一键克隆，歌词同步排版</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 4px;">拆段 / 换段</td>
+          <td style="padding:8px 4px;"><kbd>Shift+Enter</kbd> / <kbd>↑↓</kbd></td>
+          <td style="padding:8px 4px;">乐句分段换行排版</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 4px;">快速首尾跳转</td>
+          <td style="padding:8px 4px;"><kbd>Home</kbd> / <kbd>End</kbd> 或 <kbd>⌘←→</kbd></td>
+          <td style="padding:8px 4px;">长段落秒跳开头与结尾</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 4px;">整谱升降半音</td>
+          <td style="padding:8px 4px;"><kbd>⌘↑</kbd> / <kbd>⌘↓</kbd></td>
+          <td style="padding:8px 4px;">实时全谱变调</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 4px;">保存工程</td>
+          <td style="padding:8px 4px;"><kbd>⌘S</kbd> / <kbd>Ctrl+S</kbd></td>
+          <td style="padding:8px 4px;">快速导出 .jianpu.json 工程文件</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

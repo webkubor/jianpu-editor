@@ -49,6 +49,36 @@ volumeInput?.addEventListener("input", () => {
   const vol = Number(volumeInput.value) / 100;
   player.setVolume(vol);
 });
+
+const THEMES: Record<string, { accent: string; morandi: string; bg: string; text: string }> = {
+  cinnabar: { accent: "oklch(55% 0.18 25)", morandi: "215, 75, 75", bg: "oklch(97% 0.005 25)", text: "oklch(25% 0.02 25)" },
+  ripple: { accent: "oklch(51% 0.12 195)", morandi: "95, 168, 178", bg: "oklch(96% 0.01 195)", text: "oklch(25% 0.02 195)" },
+  sage: { accent: "oklch(54.1% 0.111 115)", morandi: "138, 154, 91", bg: "oklch(97% 0.011 112)", text: "oklch(25% 0.02 116)" },
+  mist: { accent: "oklch(50% 0.08 240)", morandi: "146, 168, 179", bg: "oklch(96% 0.01 240)", text: "oklch(25% 0.02 240)" },
+};
+
+function applyTheme(themeKey: string): void {
+  const t = THEMES[themeKey] || THEMES.cinnabar;
+  const root = document.documentElement;
+  root.style.setProperty("--bloom-accent", t.accent);
+  root.style.setProperty("--bloom-morandi", t.morandi);
+  root.style.setProperty("--bloom-bg", t.bg);
+  root.style.setProperty("--bloom-text", t.text);
+  root.style.setProperty("--accent", t.accent);
+  try { localStorage.setItem("jianpu-editor:theme", themeKey); } catch {}
+}
+
+const themeSelect = document.getElementById("theme-select") as HTMLSelectElement | null;
+if (themeSelect) {
+  try {
+    const savedTheme = localStorage.getItem("jianpu-editor:theme") || "cinnabar";
+    themeSelect.value = savedTheme;
+    applyTheme(savedTheme);
+  } catch {}
+  themeSelect.addEventListener("change", () => {
+    applyTheme(themeSelect.value);
+  });
+}
 dslArea.addEventListener("input", () => { dslDirty = true; });
 dslArea.addEventListener("blur", () => {
   // 离开面板且内容与当前谱一致时视为已同步，恢复自动回写

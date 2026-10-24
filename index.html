@@ -3,7 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>简谱编辑器</title>
+  <title>简谱编辑器 · 现代桌面 Web 简谱打谱与排版工具</title>
+  <meta name="description" content="现代桌面 Web 简谱编辑器：莫兰迪中国风审美设计，支持空格节拍智能分组推断、双入口文本 DSL、全键盘极速录谱、声画同步 Web Audio 物理回放、中文歌词卡拉OK对齐、内置经典竹笛名作，支持 2x PNG / 矢量 SVG / 单轨 MIDI / 离线 WAV 音频与 A4 规范化乐谱导出。" />
+  <meta name="keywords" content="简谱编辑器, 简谱打谱, 竹笛简谱, 连音线, 歌词排版, 简谱导出MIDI, 简谱转调, 网页打谱软件, Bloom主题" />
+  <meta name="author" content="webkubor" />
+
+  <!-- OpenGraph 社交分享卡片 -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="简谱编辑器 · 现代桌面 Web 简谱打谱与排版工具" />
+  <meta property="og:description" content="莫兰迪中国风审美风格，支持空格节拍推断、连音线与三连音排版、中文歌词实时对齐、MIDI 与 WAV 离线导出。" />
+  <meta property="og:url" content="https://webkubor.online/jianpu/" />
+  <meta property="og:site_name" content="Webkubor" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="简谱编辑器 · 现代桌面 Web 简谱打谱与排版工具" />
+  <meta name="twitter:description" content="现代桌面 Web 简谱编辑器：莫兰迪中国风审美设计，支持节拍分组推断、连音线排版、MIDI 与 WAV 离线导出。" />
+
+  <!-- 结构化数据 (JSON-LD) 辅助搜索引擎理解 Web 应用 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "简谱编辑器",
+    "url": "https://webkubor.online/jianpu/",
+    "description": "现代桌面 Web 简谱打谱与排版应用，支持节拍分组推断时值、键盘线性输入+文本DSL双入口、SVG矢量排版、Web Audio回放、转调、保存与多格式导出。",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "All",
+    "author": {
+      "@type": "Person",
+      "name": "webkubor",
+      "url": "https://webkubor.online"
+    }
+  }
+  </script>
   <style>
     :root {
       color-scheme: light;
@@ -356,6 +389,12 @@
     <label>曲库 <select id="examples">
       <option value="" selected>曲库示例...</option>
     </select></label>
+    <label title="切换 Bloom 莫兰迪中国风主题皮肤">🎨 <select id="theme-select">
+      <option value="cinnabar" selected>霁红 (Cinnabar)</option>
+      <option value="ripple">碧波 (Ripple)</option>
+      <option value="sage">松柏 (Sage)</option>
+      <option value="mist">远山 (Mist)</option>
+    </select></label>
     <label title="调节试听与播放音量">🔊 <input id="volume" type="range" min="0" max="100" value="80" style="width:70px; vertical-align:middle;" /></label>
     <button id="transpose-down" title="全谱降半音 (⌘↓)">♭降半音</button>
     <button id="transpose-up" title="全谱升半音 (⌘↑)">♯升半音</button>
@@ -370,6 +409,7 @@
     <button id="export-midi" title="导出单轨 MIDI，可导入 DAW / 打谱软件">🎵 MIDI</button>
     <button id="export-wav" title="使用离线音频引擎直接导出生成 .wav 音频">🔊 WAV</button>
     <button id="print" title="打印乐谱或导出保存为 A4 PDF 文件">🖨 打印 / PDF</button>
+    <a href="./tutorial.html" target="_blank" style="text-decoration:none;"><button type="button" title="打开图文教程页">📖 教程</button></a>
     <button id="open-help" title="查看完整键盘快捷键与使用技巧 (?)">❓ 快捷键</button>
     <span id="status"></span>
   </header>
