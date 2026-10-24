@@ -191,6 +191,14 @@ window.addEventListener("keydown", (e) => {
       state.toggleDotted();
       e.preventDefault();
       break;
+    case "#":
+    case "b":
+    case "B":
+      if (!state.lyricMode) {
+        state.cycleAccidental();
+        e.preventDefault();
+      }
+      break;
     case "l":
     case "L": {
       if (e.shiftKey) {

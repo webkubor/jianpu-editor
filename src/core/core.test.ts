@@ -48,6 +48,27 @@ test("timeBefore：光标处播放起点=光标前总时值，跨段累计", () 
   assert.ok(Math.abs(timeBefore(score, 1, 0) - 2 * secBeat) < 1e-9);
 });
 
+test("cycleAccidental：升降号循环切换(无->♯->♭->无)，休止符与延音线不参与且给提示，可撤销", () => {
+  const st = new EditorState(compileScore("1  0  -"));
+  st.move(1); // 选中 1
+  st.cycleAccidental();
+  assert.deepEqual(st.currentItem?.prefixAccidentals, ["♯"]);
+  st.cycleAccidental();
+  assert.deepEqual(st.currentItem?.prefixAccidentals, ["♭"]);
+  st.cycleAccidental();
+  assert.deepEqual(st.currentItem?.prefixAccidentals, []);
+  // 撤销两步回到 ♯
+  st.undo();
+  assert.deepEqual(st.currentItem?.prefixAccidentals, ["♭"]);
+  st.undo();
+  assert.deepEqual(st.currentItem?.prefixAccidentals, ["♯"]);
+  // 移动到休止符 0，无法变音
+  st.move(1);
+  st.cycleAccidental();
+  assert.ok(st.lastNotice.includes("只能应用到音符"));
+  assert.deepEqual(st.currentItem?.prefixAccidentals, []);
+});
+
 test("setBeat / setAuthors：拍号与作者修改可撤销、同值早退且不清栈", () => {
   const st = new EditorState(compileScore("1 2 3 -"));
   st.setBeat([3, 4]);

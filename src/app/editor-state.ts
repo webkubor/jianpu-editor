@@ -334,6 +334,31 @@ export class EditorState {
     this.replaceParagraphNotations(items);
   }
 
+  /** 切换当前音符升降号：无 -> ♯ -> ♭ -> 无循环切换（休止符无音高不参与）。 */
+  cycleAccidental(): void {
+    const prev = this.currentItem;
+    if (!prev || !isPitchable(prev)) {
+      this.lastNotice = "变音记号：只能应用到音符（1–7）";
+      this.emit();
+      return;
+    }
+    this.snapshot();
+    const para = this.paragraph;
+    const idx = this.itemIdx - 1;
+    const items = [...para.notations];
+    const updated = cloneNotation(prev);
+    const curr = updated.prefixAccidentals[0];
+    if (!curr) {
+      updated.prefixAccidentals = ["♯"];
+    } else if (curr === "♯") {
+      updated.prefixAccidentals = ["♭"];
+    } else {
+      updated.prefixAccidentals = [];
+    }
+    items[idx] = updated;
+    this.replaceParagraphNotations(items);
+  }
+
   /** 修改光标左边音符的八度（dir +1 高八度 / -1 低八度） */
   tweakOctave(dir: number): void {
     const prev = this.currentItem;

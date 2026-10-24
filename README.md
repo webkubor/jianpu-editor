@@ -19,6 +19,7 @@
 | `←→` / `↑↓` | 移动光标 / 换段 |
 | `⌥↑↓` | 段落重排（整段上下移，可撤销） |
 | `+` / `-` | 高低八度 |
+| `#` / `b` | 升降变音记号循环切换（无 → ♯ → ♭ → 无） |
 | `.` | 附点 |
 | `[` / `]` | 减 / 加减时线 |
 | `~` | 连音线开 / 关 |
@@ -57,7 +58,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5196
-npm test         # node --test，核心层 52 个用例
+npm test         # node --test，核心层 55 个用例
 npm run build    # tsc + vite 生产构建
 ```
 
