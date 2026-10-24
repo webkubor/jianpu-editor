@@ -14,6 +14,7 @@ import { createScore, isPitchable } from "../core/model.ts";
 import { autosave, deserializeScore, downloadBinary, downloadScore, downloadText, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
 import { EXAMPLES } from "../core/examples.ts";
 import { parseMidiBytes, midiToScore } from "../core/midi-import.ts";
+import { renderScoreToWav } from "../core/wav-export.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
 function initialScore() {
@@ -476,6 +477,23 @@ document.getElementById("export-midi")?.addEventListener("click", () => {
   const events = compileEvents(state.score);
   const data = toMidi(events, state.score.speed);
   downloadBinary(data, `${sanitizeFilename(state.score.title)}.mid`);
+});
+
+// WAV 音频导出：使用 OfflineAudioContext 高速离线渲染生成 .wav 音频
+document.getElementById("export-wav")?.addEventListener("click", async () => {
+  const events = compileEvents(state.score);
+  if (!events.some(e => e.midi !== null)) {
+    statusEl.textContent = "当前乐谱无有效音符，无法导出音频";
+    return;
+  }
+  try {
+    statusEl.textContent = "正在离线渲染 WAV 音频...";
+    const wavBytes = await renderScoreToWav(events);
+    downloadBinary(wavBytes, `${sanitizeFilename(state.score.title || "简谱")}.wav`);
+    statusEl.textContent = `WAV 音频已导出 (${(wavBytes.length / 1024).toFixed(1)} KB)`;
+  } catch (err) {
+    statusEl.textContent = `WAV 导出失败：${(err as Error).message}`;
+  }
 });
 
 document.getElementById("export-png")?.addEventListener("click", () => {  const svg = renderScoreSvg(state.score, null);

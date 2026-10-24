@@ -931,6 +931,21 @@ test("moveToBoundary：支持直接跳跃到段首 (0) 与段尾 (length)", asyn
   assert.equal(st.itemIndex, 0);
 });
 
+test("WAV 编码器：audioBufferToWav 生成标准 RIFF/WAVE 头与 16-bit PCM 字节", async () => {
+  const { audioBufferToWav } = await import("./wav-export.ts");
+  // 构造模拟 AudioBuffer 对象
+  const mockBuffer = {
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    getChannelData: () => new Float32Array([0, 0.5, -0.5, 0]),
+  } as unknown as AudioBuffer;
+  const wavBytes = audioBufferToWav(mockBuffer);
+  const text = String.fromCharCode(...wavBytes.slice(0, 4)) + String.fromCharCode(...wavBytes.slice(8, 12));
+  assert.equal(text, "RIFFWAVE");
+  // 头长度 44 字节 + 4 个 16-bit 采样 (8 字节) = 52 字节
+  assert.equal(wavBytes.length, 52);
+});
+
 test("Delete 键：向右删除光标后一个符号，末尾不越界，可撤销", async () => {
   const { EditorState } = await import("../app/editor-state.ts");
   const st = new EditorState(compileScore("1  2  3"));
