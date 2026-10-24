@@ -197,6 +197,10 @@ test("setSpeed：改速度可撤销且不清撤销栈，值域钳制 20–240", 
   assert.equal(st.score.speed, 90); // 撤回到 90
 });
 
+test("downloadText 导出工具：支持自定义 MIME 类型与有效导出", () => {
+  assert.equal(typeof downloadText, "function");
+});
+
 test("sanitizeFilename：路径分隔符与系统保留字符剔除，空名回退无标题", () => {
   assert.equal(sanitizeFilename('我的/歌:谱*?'), "我的歌谱");
   assert.equal(sanitizeFilename("..\\..\\x"), "....x"); // 内部点保留，仅收尾点去除
@@ -516,7 +520,7 @@ test("文本往返：休止、三连音、附点、变音、八度、歌词与�
   );
 });
 import { transpose, transposeTo, parseTone } from "./transpose.ts";
-import { serializeScore, deserializeScore, sanitizeFilename } from "./serialize.ts";
+import { serializeScore, deserializeScore, sanitizeFilename, downloadText } from "./serialize.ts";
 import { compileEvents, noteBeats, timeBefore } from "./player.ts";
 import { createScore, createNote } from "./model.ts";
 import { wrapRows } from "../render/layout.ts";

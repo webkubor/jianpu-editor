@@ -11,7 +11,7 @@ import { compileScore } from "../core/dsl.ts";
 import { toDsl } from "../core/dsl-export.ts";
 import { validateScore } from "../core/validate.ts";
 import { createScore, isPitchable } from "../core/model.ts";
-import { autosave, deserializeScore, downloadBinary, downloadScore, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
+import { autosave, deserializeScore, downloadBinary, downloadScore, downloadText, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
 import { EXAMPLES } from "../core/examples.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
@@ -416,6 +416,13 @@ document.getElementById("export-png")?.addEventListener("click", () => {  const 
     a.click();
   };
   img.src = url;
+});
+
+// SVG 矢量导出：原汁原味可缩放矢量文件，支持插图与排版排版软件
+document.getElementById("export-svg")?.addEventListener("click", () => {
+  const svg = renderScoreSvg(state.score, null);
+  const xml = new XMLSerializer().serializeToString(svg);
+  downloadText(xml, `${sanitizeFilename(state.score.title || "简谱")}.svg`);
 });
 
 /** 打印：新窗口只含乐谱 SVG，触发打印对话框 */

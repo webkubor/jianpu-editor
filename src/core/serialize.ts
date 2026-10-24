@@ -84,6 +84,16 @@ export function downloadScore(score: Score): void {
   URL.revokeObjectURL(a.href);
 }
 
+/** 下载文本/矢量文件（SVG 等导出用） */
+export function downloadText(content: string, filename: string, mimeType = "image/svg+xml;charset=utf-8"): void {
+  const blob = new Blob([content], { type: mimeType });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /** 下载二进制文件（MIDI 导出用） */
 export function downloadBinary(data: Uint8Array, filename: string): void {
   const blob = new Blob([data.slice().buffer as ArrayBuffer], { type: "audio/midi" });

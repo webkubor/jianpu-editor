@@ -30,7 +30,7 @@
 | `⌘Z` / `⌘⇧Z` | 撤销 / 重做 |
 | `Enter` | 播放 / 停止（Shift+Enter 从光标处播；播放中可继续编辑，高亮照常推进） |
 
-工具栏：曲名 / 调号 / 速度 / 拍号 / 作者、**经典曲库预设（送别 / 康定情歌 / 茉莉花）**、♭♯ 半音、保存 / 打开 `.jianpu.json`、**PNG / 🎵MIDI 导出**、打印、DSL 灌入 / 导出。MIDI 可直接导入 DAW / 打谱软件（真实时值：附点、三连音、延音线合并）。
+工具栏：曲名 / 调号 / 速度 / 拍号 / 作者、**经典曲库预设（送别 / 康定情歌 / 茉莉花）**、♭♯ 半音、保存 / 打开 `.jianpu.json`、**PNG / 📐SVG 矢量 / 🎵MIDI 导出**、打印、DSL 灌入 / 导出。MIDI 可直接导入 DAW / 打谱软件（真实时值：附点、三连音、延音线合并）。
 
 ## DSL
 
@@ -58,7 +58,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5196
-npm test         # node --test，核心层 57 个用例
+npm test         # node --test，核心层 58 个用例
 npm run build    # tsc + vite 生产构建
 ```
 
