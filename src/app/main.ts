@@ -121,6 +121,12 @@ window.addEventListener("keydown", (e) => {
     } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") {
       state.duplicateMeasure();
       e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "ArrowLeft") {
+      state.moveToBoundary(false); // ⌘← 跳到段首
+      e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "ArrowRight") {
+      state.moveToBoundary(true);  // ⌘→ 跳到段尾
+      e.preventDefault();
     }
     return;
   }
@@ -183,6 +189,14 @@ window.addEventListener("keydown", (e) => {
       break;
     case "ArrowRight":
       state.move(1);
+      e.preventDefault();
+      break;
+    case "Home":
+      state.moveToBoundary(false);
+      e.preventDefault();
+      break;
+    case "End":
+      state.moveToBoundary(true);
       e.preventDefault();
       break;
     case "ArrowUp":

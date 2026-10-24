@@ -115,6 +115,12 @@ export class EditorState {
     this.emit();
   }
 
+  /** 光标直接跳到段首 (Home) 或段尾 (End) */
+  moveToBoundary(toEnd: boolean): void {
+    this.itemIdx = toEnd ? this.paragraph.notations.length : 0;
+    this.emit();
+  }
+
   /** 按段落和符号下标定位；选择不进入编辑历史。 */
   selectItem(paragraph: number, index: number): void {
     if (!Number.isInteger(paragraph) || !Number.isInteger(index)) return;

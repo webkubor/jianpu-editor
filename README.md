@@ -17,6 +17,7 @@
 | `空格` | 延音线 |
 | `\|` | 小节线 |
 | `←→` / `↑↓` | 移动光标 / 换段 |
+| `Home` / `End` (或 `⌘←` / `⌘→`) | 光标快速跳到当前段首 / 段尾 |
 | `⌥↑↓` | 段落重排（整段上下移，可撤销） |
 | `+` / `-` | 高低八度 |
 | `#` / `b` | 升降变音记号循环切换（无 → ♯ → ♭ → 无） |
@@ -61,7 +62,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5196
-npm test         # node --test，核心层 63 个用例
+npm test         # node --test，核心层 64 个用例
 npm run build    # tsc + vite 生产构建
 ```
 
