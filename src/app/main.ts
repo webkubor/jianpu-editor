@@ -480,11 +480,8 @@ document.getElementById("print")?.addEventListener("click", () => {
   w.print();
 });
 
-/** 打开 .jianpu.json 或导入 .mid / .midi */
-document.getElementById("open")?.addEventListener("change", (e) => {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
+/** 处理载入文件（支持 .jianpu.json 工程文件与 .mid/.midi 二进制文件） */
+function handleLoadFile(file: File): void {
   const name = file.name.toLowerCase();
   if (name.endsWith(".mid") || name.endsWith(".midi")) {
     const reader = new FileReader();
@@ -499,7 +496,6 @@ document.getElementById("open")?.addEventListener("change", (e) => {
       } catch (err) {
         statusEl.textContent = `MIDI 解析失败：${(err as Error).message}`;
       }
-      input.value = "";
     };
     reader.readAsArrayBuffer(file);
     return;
@@ -512,9 +508,35 @@ document.getElementById("open")?.addEventListener("change", (e) => {
     } else {
       statusEl.textContent = "文件格式不对：需要 .jianpu.json 或标准 .mid / .midi 文件";
     }
-    input.value = "";
   };
   reader.readAsText(file);
+}
+
+/** 打开 .jianpu.json 或导入 .mid / .midi */
+document.getElementById("open")?.addEventListener("change", (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  handleLoadFile(file);
+  input.value = "";
+});
+
+/** 画布拖拽文件直接导入 */
+window.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+});
+canvas.addEventListener("dragenter", () => {
+  canvas.classList.add("drag-over");
+});
+canvas.addEventListener("dragleave", () => {
+  canvas.classList.remove("drag-over");
+});
+window.addEventListener("drop", (e) => {
+  e.preventDefault();
+  canvas.classList.remove("drag-over");
+  const file = e.dataTransfer?.files?.[0];
+  if (file) handleLoadFile(file);
 });
 
 document.getElementById("play")?.addEventListener("click", (ev) => {

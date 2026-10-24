@@ -58,7 +58,8 @@
       max-width: 1200px;
       margin: 0 auto;
     }
-    #canvas { background: #fff; border: 1px solid #e2ddd2; border-radius: 8px; min-height: 400px; padding: 8px; }
+    #canvas { background: #fff; border: 1px solid #e2ddd2; border-radius: 8px; min-height: 400px; padding: 8px; transition: border-color 0.15s, background-color 0.15s; }
+    #canvas.drag-over { border-color: var(--accent); background-color: #fffaf0; outline: 2px dashed var(--accent); }
     .score-svg { color: var(--ink); display: block; }
     .score-svg .glyph { cursor: pointer; }
     .score-svg .glyph.selected { fill: var(--accent); }

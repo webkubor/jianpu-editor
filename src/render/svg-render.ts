@@ -307,7 +307,7 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
     svg.appendChild(el("text", {
       x: pageWidth / 2, y: yOffset + 48,
       "text-anchor": "middle", "font-size": 16, fill: "#bbb",
-    }, "直接按 1–7 输入音符 · 或把简谱文本粘贴到画布（⌘V）"));
+    }, "直接按 1–7 输入音符 · 支持拖拽 .json / .mid 到画布导入 · 或粘贴简谱 (⌘V)"));
     yOffset += 64;
   }
   svg.setAttribute("viewBox", `0 0 ${pageWidth} ${yOffset + 40}`);
