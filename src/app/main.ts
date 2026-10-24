@@ -6,11 +6,11 @@
 
 import { EditorState } from "./editor-state.ts";
 import { renderScore, renderScoreSvg } from "../render/svg-render.ts";
-import { Player, compileEvents, timeBefore, toMidi } from "../core/player.ts";
+import { Player, compileEvents, midiOf, timeBefore, toMidi } from "../core/player.ts";
 import { compileScore } from "../core/dsl.ts";
 import { toDsl } from "../core/dsl-export.ts";
 import { validateScore } from "../core/validate.ts";
-import { createScore } from "../core/model.ts";
+import { createScore, isPitchable } from "../core/model.ts";
 import { autosave, deserializeScore, downloadBinary, downloadScore, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
@@ -80,8 +80,17 @@ canvas.addEventListener("click", (event) => {
   const row = glyph?.closest<SVGGElement>(".paragraph");
   if (!glyph || !row) return;
   state.selectItem(Number(row.dataset.para), Number(glyph.dataset.idx));
+  previewCurrentTone();
   (document.activeElement as HTMLElement | null)?.blur();
 });
+
+/** 当前光标所在音符触发单音试听反馈。 */
+function previewCurrentTone(): void {
+  const item = state.currentItem;
+  if (item && isPitchable(item)) {
+    player.playTone(midiOf(state.score.tone, item));
+  }
+}
 
 /** 键盘主路由 */
 window.addEventListener("keydown", (e) => {
@@ -112,6 +121,7 @@ window.addEventListener("keydown", (e) => {
   state.lastNotice = "";
   if (/^[0-7]$/.test(e.key)) {
     state.insertNote(e.key);
+    if (e.key !== "0") previewCurrentTone();
     e.preventDefault();
     return;
   }
@@ -169,10 +179,12 @@ window.addEventListener("keydown", (e) => {
     case "=":
     case "+":
       state.tweakOctave(1);
+      previewCurrentTone();
       e.preventDefault();
       break;
     case "-":
       state.tweakOctave(-1);
+      previewCurrentTone();
       e.preventDefault();
       break;
     case "[":
@@ -196,6 +208,7 @@ window.addEventListener("keydown", (e) => {
     case "B":
       if (!state.lyricMode) {
         state.cycleAccidental();
+        previewCurrentTone();
         e.preventDefault();
       }
       break;

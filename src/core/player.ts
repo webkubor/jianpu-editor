@@ -158,8 +158,8 @@ export function compileEvents(score: Score): PlayEvent[] {
   return events;
 }
 
-/** 单符号音高换算（连音线同音高判定用） */
-function midiOf(tone: string, n: Notation): number {
+/** 单符号音高换算（对外导出，供即时试听与连音线同音高判定用） */
+export function midiOf(tone: string, n: Notation): number {
   const acc = (n.prefixAccidentals || []).reduce((a, x) => a + (x === "♯" ? 1 : -1), 0);
   return toneToMidiBase(tone) + DIGIT_TO_LEVEL[n.note] + acc + 12 * n.octave;
 }
@@ -257,5 +257,37 @@ export class Player {
 
   get playing(): boolean {
     return this.active;
+  }
+
+  /** 单音即时试听（输入/改八度/改升降号时触发轻量反馈，不影响全谱播放状态） */
+  playTone(midi: number, durationSec = 0.22): void {
+    if (this.active) return; // 正在全谱回放时不冲突抢占
+    try {
+      if (!this.ctx || this.ctx.state === "closed") {
+        this.ctx = new AudioContext();
+      }
+      const ctx = this.ctx;
+      if (ctx.state === "suspended") void ctx.resume();
+      const at = ctx.currentTime + 0.01;
+      const freq = 440 * 2 ** ((midi - 69) / 12);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.12, at + 0.015);
+      gain.gain.setValueAtTime(0.12, at + durationSec * 0.7);
+      gain.gain.linearRampToValueAtTime(0.0001, at + durationSec);
+      gain.connect(ctx.destination);
+      for (const [mult, vol] of [[1, 1], [2, 0.28], [3, 0.1]] as const) {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = freq * mult;
+        const og = ctx.createGain();
+        og.gain.value = vol;
+        osc.connect(og).connect(gain);
+        osc.start(at);
+        osc.stop(at + durationSec + 0.02);
+      }
+    } catch {
+      // 浏览器未交互前受安全限制静默跳过
+    }
   }
 }

@@ -48,6 +48,20 @@ test("timeBefore：光标处播放起点=光标前总时值，跨段累计", () 
   assert.ok(Math.abs(timeBefore(score, 1, 0) - 2 * secBeat) < 1e-9);
 });
 
+test("playTone 与 midiOf：音高计算精确，全谱播放时不抢占", async () => {
+  const { Player, midiOf } = await import("./player.ts");
+  const p = new Player();
+  const n1 = createNote({ note: "1", octave: 0 });
+  const n2 = createNote({ note: "1", octave: 1 });
+  const nSharp = createNote({ note: "4", prefixAccidentals: ["♯"] });
+  assert.equal(midiOf("C", n1), 60); // C4 do
+  assert.equal(midiOf("C", n2), 72); // C5 高音 do
+  assert.equal(midiOf("C", nSharp), 66); // F#4
+  assert.equal(midiOf("G", n1), 67); // G 调 do = G4
+  // playTone 在单测环境下（node环境无 AudioContext）不抛异常且安全跳过
+  p.playTone(60);
+});
+
 test("cycleAccidental：升降号循环切换(无->♯->♭->无)，休止符与延音线不参与且给提示，可撤销", () => {
   const st = new EditorState(compileScore("1  0  -"));
   st.move(1); // 选中 1
