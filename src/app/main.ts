@@ -60,12 +60,12 @@ function refresh(): void {
   autosave(state.score);
   (document.getElementById("undo") as HTMLButtonElement).disabled = !state.canUndo;
   (document.getElementById("redo") as HTMLButtonElement).disabled = !state.canRedo;
-  titleInput.value = state.score.title;
+  if (document.activeElement !== titleInput) titleInput.value = state.score.title;
   document.title = `${state.score.title} · 简谱编辑器`;
   beatSelect.value = `${state.score.beat[0]}/${state.score.beat[1]}`;
   toneSelect.value = state.score.tone;
   speedInput.value = String(state.score.speed);
-  authorsInput.value = state.score.authors.join("  ");
+  if (document.activeElement !== authorsInput) authorsInput.value = state.score.authors.join("  ");
   if (!dslDirty) dslArea.value = toDsl(state.score);  const issues = validateScore(state.score);
   const warn = issues.length
     ? ` · ⚠ ${issues.length} 个小节拍数异常（${issues.slice(0, 2).map((i) => `段${i.paragraph + 1}小节${i.bar + 1}:${i.beats}/${i.expected}拍`).join("、")}）`
@@ -332,6 +332,9 @@ function restorePlayingHighlight(): void {
 /** 工具栏事件 */
 document.getElementById("undo")?.addEventListener("click", () => state.undo());
 document.getElementById("redo")?.addEventListener("click", () => state.redo());
+titleInput.addEventListener("input", () => {
+  state.setTitle(titleInput.value);
+});
 titleInput.addEventListener("change", () => {
   state.setTitle(titleInput.value);
 });
@@ -340,6 +343,10 @@ beatSelect.addEventListener("change", () => {
   if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) {
     state.setBeat([parts[0], parts[1]]);
   }
+});
+authorsInput.addEventListener("input", () => {
+  const raw = authorsInput.value.split(/[,，\s]+/).filter(Boolean);
+  state.setAuthors(raw);
 });
 authorsInput.addEventListener("change", () => {
   const raw = authorsInput.value.split(/[,，\s]+/).filter(Boolean);
