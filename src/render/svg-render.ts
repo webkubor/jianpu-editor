@@ -300,6 +300,41 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
         }
         x += g.width + flex;
       });
+
+      // 三连音 (Tuplet) 顶部弧线与数字 "3" 自动绘制
+      // 扫描行内连续且 beatFrac 接近 1/3 (0.3333) 的 3 个音符组
+      let tIdx = 0;
+      while (tIdx <= rowGlyphs.length - 3) {
+        const isTri = (gg: typeof rowGlyphs[0]) =>
+          isPitchable(gg.n) && gg.n.beatFrac !== undefined && Math.abs(gg.n.beatFrac - 1 / 3) < 0.01;
+        if (isTri(rowGlyphs[tIdx]) && isTri(rowGlyphs[tIdx + 1]) && isTri(rowGlyphs[tIdx + 2])) {
+          // 计算这 3 个音符在行内的中心 x 坐标
+          const c0 = rowCenterX(rowGlyphs.map(gg => gg.width), tIdx, flex);
+          const c2 = rowCenterX(rowGlyphs.map(gg => gg.width), tIdx + 2, flex);
+          const { pathD, midX, textY } = tupletBracketD(c0, c2);
+
+          // 绘制平滑三连音跨弧 (浅弧线从 c0 上方连到 c2 上方，居中开口或上凸)
+          row.appendChild(el("path", {
+            d: pathD,
+            stroke: "currentColor", fill: "none", "stroke-width": 1.1, class: "tuplet-bracket",
+          }));
+          row.appendChild(el("text", {
+            x: midX,
+            y: textY,
+            "text-anchor": "middle",
+            "dominant-baseline": "middle",
+            "font-size": 11,
+            "font-style": "italic",
+            "font-family": "Times New Roman, serif",
+            class: "tuplet-number",
+          }, "3"));
+
+          tIdx += 3;
+        } else {
+          tIdx += 1;
+        }
+      }
+
       svg.appendChild(row);
       // 有歌词的行增加行高间距，防止歌词与下一行的低音点或音符重叠拥挤
       const rowHasLyrics = para.lyrics.length > 0;
@@ -318,7 +353,15 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
   return svg;
 }
 
-/** 统计段内某符号之前的发声符号数（歌词跨行对齐用） */
+/** 计算三连音括弧 path 坐标；抽成纯函数以便跨环境单测 */
+export function tupletBracketD(c0: number, c2: number, topY = -24): { pathD: string; midX: number; textY: number } {
+  const midX = (c0 + c2) / 2;
+  return {
+    pathD: `M ${c0} ${topY + 3} Q ${c0} ${topY} ${c0 + 5} ${topY} L ${midX - 7} ${topY} M ${midX + 7} ${topY} L ${c2 - 5} ${topY} Q ${c2} ${topY} ${c2} ${topY + 3}`,
+    midX,
+    textY: topY + 3,
+  };
+}
 function countSoundingBefore(score: Score, para: Paragraph, key: string): number {
   const list = score.paragraphs.find((p) => p === para)?.notations ?? [];
   let count = 0;

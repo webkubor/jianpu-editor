@@ -912,6 +912,14 @@ test("MIDI 往返：导出 MIDI 并通过 parseMidiBytes + midiToScore 重新导
   assert.equal(soundingNotes[3].note, "5");
 });
 
+test("三连音排版：tupletBracketD 坐标算法精确生成开口括弧与斜体连音数位置", async () => {
+  const { tupletBracketD } = await import("../render/svg-render.ts");
+  const { pathD, midX, textY } = tupletBracketD(20, 80);
+  assert.equal(midX, 50);
+  assert.equal(textY, -21);
+  assert.ok(pathD.startsWith("M 20 -21 Q 20 -24 25 -24 L 43 -24 M 57 -24"));
+});
+
 test("moveToBoundary：支持直接跳跃到段首 (0) 与段尾 (length)", async () => {
   const { EditorState } = await import("../app/editor-state.ts");
   const st = new EditorState(compileScore("1  2  3  4  5"));
