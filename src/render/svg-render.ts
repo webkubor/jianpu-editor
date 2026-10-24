@@ -297,7 +297,9 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
         x += g.width + flex;
       });
       svg.appendChild(row);
-      yOffset += LAYOUT.lineHeight;
+      // 有歌词的行增加行高间距，防止歌词与下一行的低音点或音符重叠拥挤
+      const rowHasLyrics = para.lyrics.length > 0;
+      yOffset += rowHasLyrics ? LAYOUT.lineHeight + 16 : LAYOUT.lineHeight;
     }
   }
   if (score.paragraphs.every((p) => p.notations.length === 0)) {
