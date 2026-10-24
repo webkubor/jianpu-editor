@@ -35,6 +35,13 @@ const authorsInput = document.getElementById("authors") as HTMLInputElement;
 const dslArea = document.getElementById("dsl") as HTMLTextAreaElement;
 // DSL 面板是双向入口：画布编辑会回写 DSL 文本，但用户手打的草稿不能被覆盖（点「导入」或外部灌入后才清除标记）
 let dslDirty = false;
+let metronomeEnabled = false;
+const metronomeBtn = document.getElementById("metronome") as HTMLButtonElement | null;
+metronomeBtn?.addEventListener("click", () => {
+  metronomeEnabled = !metronomeEnabled;
+  metronomeBtn.classList.toggle("active", metronomeEnabled);
+  metronomeBtn.textContent = metronomeEnabled ? "⏱ 节拍器 (开)" : "⏱ 节拍器";
+});
 dslArea.addEventListener("input", () => { dslDirty = true; });
 dslArea.addEventListener("blur", () => {
   // 离开面板且内容与当前谱一致时视为已同步，恢复自动回写
@@ -248,7 +255,11 @@ window.addEventListener("keydown", (e) => {
         const from = e.shiftKey ? timeBefore(score, state.paragraphIndex, state.itemIndex) : 0;
         const events = compileEvents(score).filter(ev => ev.start >= from - 1e-9)
           .map(ev => ({ ...ev, start: ev.start - from }));
-        player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
+        player.play(
+          events,
+          { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight },
+          { metronome: metronomeEnabled, beat: score.beat, speed: score.speed }
+        );
         updatePlayButton();
       }
       e.preventDefault();
@@ -488,7 +499,11 @@ document.getElementById("play")?.addEventListener("click", (ev) => {
   const from = (ev as MouseEvent).shiftKey ? timeBefore(state.score, state.paragraphIndex, state.itemIndex) : 0;
   const events = compileEvents(state.score).filter(e => e.start >= from - 1e-9)
     .map(e => ({ ...e, start: e.start - from }));
-  player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
+  player.play(
+    events,
+    { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight },
+    { metronome: metronomeEnabled, beat: state.score.beat, speed: state.score.speed }
+  );
   updatePlayButton();
 });
 

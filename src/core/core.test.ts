@@ -102,6 +102,18 @@ test("反复记号：||: 与 :|| 词法解析、排版渲染、校验分小节�
   assert.equal(round.paragraphs[0].notations[round.paragraphs[0].notations.length - 1].note, ":||");
 });
 
+test("节拍器选项：play() 支持 options.metronome 伴奏选项且不影响基础回放", async () => {
+  const { Player, compileEvents } = await import("./player.ts");
+  const p = new Player();
+  const score = compileScore("1  2  3  4", { beat: [4, 4], speed: 120 });
+  const events = compileEvents(score);
+  // 在单测纯 Node 环境下安全调用不抛出
+  p.play(events, {}, { metronome: true, beat: [4, 4], speed: 120 });
+  assert.equal(p.playing, true);
+  p.stop();
+  assert.equal(p.playing, false);
+});
+
 test("playTone 与 midiOf：音高计算精确，全谱播放时不抢占", async () => {
   const { Player, midiOf } = await import("./player.ts");
   const p = new Player();

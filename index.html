@@ -66,6 +66,7 @@
     .score-svg .lyric { fill: #555; }
     .score-svg .lyric.lyric-playing { fill: var(--accent); font-weight: 700; }
     #play.btn-playing { background: #fee2e2; border-color: #f87171; color: #b91c1c; font-weight: 600; }
+    #metronome.active { background: #e0f2fe; border-color: #38bdf8; color: #0369a1; font-weight: 600; }
     aside { display: flex; flex-direction: column; gap: 12px; }
     aside section {
       background: #fff;
@@ -116,6 +117,7 @@
     <button id="transpose-up">♯升半音</button>
     <button id="undo" title="撤销上一步（⌘Z / Ctrl+Z）">↶ 撤销</button>
     <button id="redo" title="重做（⌘⇧Z / Ctrl+Shift+Z）">↪ 重做</button>
+    <button id="metronome" title="开启/关闭节拍器伴奏打点 (强拍高音/弱拍嗒音)">⏱ 节拍器</button>
     <button id="play" title="Shift+点击 = 从光标处播放">▶ 播放 (Enter)</button>
     <button id="save">⬇ 保存 .json</button>
     <button id="export-png">🖼 PNG</button>

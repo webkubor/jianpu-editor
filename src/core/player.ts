@@ -191,6 +191,17 @@ export interface PlayerCallbacks {
   onNote?: (index: number, paragraph: number) => void;
   /** 回放结束 */
   onEnd?: () => void;
+  /** 节拍器滴答回调（当前是小节内第几拍：0 为首拍强拍） */
+  onBeat?: (beatInBar: number) => void;
+}
+
+export interface PlayOptions {
+  /** 是否开启节拍器伴奏音（强拍高音，弱拍短木鱼音） */
+  metronome?: boolean;
+  /** 节拍参数：[每小节拍数, 拍基数] 如 [4, 4] 或 [3, 4] */
+  beat?: [number, number];
+  /** 乐谱速度 BPM */
+  speed?: number;
 }
 
 /** 简单正弦+泛音合成器（零依赖，音色柔和接近人声哼唱） */
@@ -201,13 +212,18 @@ export class Player {
   private active = false;
   private timers: number[] = [];
 
-  /** 播放事件流 */
-  play(events: PlayEvent[], cb: PlayerCallbacks = {}): void {
+  /** 播放事件流，支持可选伴奏节拍器 */
+  play(events: PlayEvent[], cb: PlayerCallbacks = {}, options: PlayOptions = {}): void {
     this.stop();
     this.stopFlag = false;
     this.active = true;
-    if (!this.ctx) this.ctx = new AudioContext();
+    try {
+      if (!this.ctx && typeof AudioContext !== "undefined") this.ctx = new AudioContext();
+    } catch {
+      // 纯测试/无音频硬件环境安全降级
+    }
     const ctx = this.ctx;
+    if (!ctx) return;
     void ctx.resume();
     const t0 = ctx.currentTime + 0.05;
     for (const ev of events) {
@@ -239,6 +255,44 @@ export class Player {
         osc.stop(at + ev.duration + 0.02);
       }
     }
+
+    // 节拍器伴奏：按 speed 与 beat[0] 节拍循环打点（强拍 1000Hz 清脆滴声，次拍 700Hz 弱嗒声）
+    if (options.metronome && events.length > 0) {
+      const beatsPerBar = options.beat ? options.beat[0] : 4;
+      const speed = options.speed || 75;
+      const secPerBeat = beatSeconds(speed);
+      const totalDur = events[events.length - 1].start + events[events.length - 1].duration;
+      let beatCount = 0;
+      for (let bt = 0; bt <= totalDur + 1e-4; bt += secPerBeat) {
+        const at = t0 + bt;
+        const beatInBar = beatCount % beatsPerBar;
+        const isDownbeat = beatInBar === 0;
+        const delayMs = Math.max(0, (at - ctx.currentTime) * 1000);
+        this.timers.push(
+          window.setTimeout(() => {
+            if (!this.stopFlag) cb.onBeat?.(beatInBar);
+          }, delayMs)
+        );
+
+        // 真实节拍发声
+        const freq = isDownbeat ? 1040 : 780;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(isDownbeat ? 0.08 : 0.045, at + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+        gain.connect(ctx.destination);
+
+        const osc = ctx.createOscillator();
+        osc.type = isDownbeat ? "triangle" : "sine";
+        osc.frequency.setValueAtTime(freq, at);
+        osc.connect(gain);
+        osc.start(at);
+        osc.stop(at + 0.07);
+
+        beatCount += 1;
+      }
+    }
+
     const totalMs = (events.length ? events[events.length - 1].start + events[events.length - 1].duration : 0) * 1000 + 300;
     this.timers.push(
       window.setTimeout(() => {
