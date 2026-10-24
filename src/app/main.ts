@@ -249,6 +249,7 @@ window.addEventListener("keydown", (e) => {
         const events = compileEvents(score).filter(ev => ev.start >= from - 1e-9)
           .map(ev => ({ ...ev, start: ev.start - from }));
         player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
+        updatePlayButton();
       }
       e.preventDefault();
       break;
@@ -258,7 +259,19 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-/** 播放高亮：按 data-para/data-idx 定位符号（跨视觉行稳定）；DOM 被编辑重建时按播放位置重挂 */
+const playButton = document.getElementById("play") as HTMLButtonElement | null;
+
+function updatePlayButton(): void {
+  if (playButton) {
+    if (player.playing) {
+      playButton.textContent = "⏹ 停止 (Enter)";
+      playButton.classList.add("btn-playing");
+    } else {
+      playButton.textContent = "▶ 播放 (Enter)";
+      playButton.classList.remove("btn-playing");
+    }
+  }
+}
 let playingNow: { index: number; paragraph: number } | null = null;
 
 function highlightIndex(index: number, paragraph: number): void {
@@ -285,6 +298,7 @@ function clearHighlight(): void {
   playingNow = null;
   canvas.querySelectorAll(".playing").forEach((g) => g.classList.remove("playing"));
   canvas.querySelectorAll(".lyric-playing").forEach((t) => t.classList.remove("lyric-playing"));
+  updatePlayButton();
 }
 
 /** 播放期间编辑乐谱会全量重建 DOM 抹掉高亮——每次刷新后按播放位置补挂。 */
@@ -475,6 +489,7 @@ document.getElementById("play")?.addEventListener("click", (ev) => {
   const events = compileEvents(state.score).filter(e => e.start >= from - 1e-9)
     .map(e => ({ ...e, start: e.start - from }));
   player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
+  updatePlayButton();
 });
 
 const exampleSelect = document.getElementById("examples") as HTMLSelectElement | null;
