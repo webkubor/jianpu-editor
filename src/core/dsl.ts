@@ -15,14 +15,32 @@
  */
 
 import { BAR, createBar, createExtend, createNote, createParagraph, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, createScore } from "./model.ts";
-import type { NoteDigit, Notation, Paragraph, Score } from "./model.ts";
+import type { NoteDigit, Notation, Paragraph, Score, WindTechnique } from "./model.ts";
 
 /** 词法单元 */
 export type Token =
-  | { t: "note"; digit: string; octave: number; dotted: boolean; accidentals: ("♯" | "♭")[]; decorators: string[] }
+  | {
+      t: "note";
+      digit: string;
+      octave: number;
+      dotted: boolean;
+      accidentals: ("♯" | "♭")[];
+      decorators: string[];
+      graceNotes?: { note: string; octave: number }[];
+      technique?: {
+        trill?: boolean;
+        mordent?: boolean;
+        slideUp?: boolean;
+        slideDown?: boolean;
+        tonguing?: "T" | "K" | "TK" | "TKT";
+        glissando?: boolean;
+        vibrato?: boolean;
+        flutter?: boolean;
+      };
+    }
   | { t: "duration"; beats: number; underline: number }
   | { t: "extend" }
-  | { t: "bar"; double?: boolean; repeat?: "start" | "end" }
+  | { t: "bar"; double?: boolean; repeat?: "start" | "end"; volta?: string }
   | { t: "tie" }
   | { t: "lyrics"; words: string[] };
 
@@ -59,7 +77,7 @@ export function tokenizeLine(line: string): LexResult {
     .replace(/′/g, "'");
   line = normalized;
   while (i < line.length) {
-    const c = line[i];
+    let c = line[i];
     if (c === " " || c === "\t") {
       spaceRun += 1;
       // 双空格且下一个是非空格 → 拍边界
@@ -115,6 +133,16 @@ export function tokenizeLine(line: string): LexResult {
       i += 1;
       continue;
     }
+    // 跳房子反复门楼标记：如 [1. 或 [2. 或 [1,2.
+    if (c === "[" && /^\[[0-9,\.]+\.?\]?/.test(line.slice(i))) {
+      const match = /^\[([0-9,\.]+)/.exec(line.slice(i));
+      if (match) {
+        tokens.push({ t: "bar", volta: match[1] });
+        i += match[0].length;
+        if (line[i] === "]") i += 1;
+        continue;
+      }
+    }
     // 歌词行：[词:…]，token 数与后续音符行对齐（空格分隔，- 表示无词）
     if (c === "[") {
       const close = line.indexOf("]", i);
@@ -126,6 +154,40 @@ export function tokenizeLine(line: string): LexResult {
       i = close + 1;
       continue;
     }
+    // 倚音 / 装饰小音符：如 (5)6 或 (^1)7 或 (3,5)6
+    let graceNotes: { note: string; octave: number }[] | undefined;
+    if (c === "(") {
+      const close = line.indexOf(")", i);
+      if (close > i + 1) {
+        const inner = line.slice(i + 1, close);
+        // 解析括号内的微型数字音符与八度
+        const parsedGrace: { note: string; octave: number }[] = [];
+        let gi = 0;
+        let gOctUp = false;
+        while (gi < inner.length) {
+          const gc = inner[gi];
+          if (gc === "^") { gOctUp = true; gi++; continue; }
+          if (/[1-7]/.test(gc)) {
+            let oct = gOctUp ? 1 : 0;
+            gOctUp = false;
+            gi++;
+            while (gi < inner.length && (inner[gi] === "'" || inner[gi] === "," || inner[gi] === "^")) {
+              oct += inner[gi] === "," ? -1 : 1;
+              gi++;
+            }
+            parsedGrace.push({ note: gc, octave: oct });
+            continue;
+          }
+          gi++;
+        }
+        if (parsedGrace.length > 0) {
+          graceNotes = parsedGrace;
+          i = close + 1;
+          c = line[i] || "";
+        }
+      }
+    }
+
     // 前缀 ^：高八度记号（^1 = 高音 do），并到下一个音符上
     if (c === "^") {
       pendingOctaveUp = true;
@@ -154,17 +216,38 @@ export function tokenizeLine(line: string): LexResult {
         dotted = true;
         i += 1;
       }
-      // 顶部表情/装饰记号：如 5{▾} 或 5{fermata} 或 5{⌒}
+      // 顶部表情/装饰记号与管乐技巧：如 5{▾}、5{tr}、5{up}、5{down}、5{T}、5{TK}、(5)6 倚音等
       const decorators: string[] = [];
+      const technique: WindTechnique = {};
       if (line[i] === "{") {
         const close = line.indexOf("}", i);
         if (close !== -1) {
           const raw = line.slice(i + 1, close).trim();
-          if (raw) decorators.push(raw);
+          const items = raw.split(/[,，\s]+/).filter(Boolean);
+          for (const it of items) {
+            if (it === "tr" || it === "trill") technique.trill = true;
+            else if (it === "mordent" || it === "波音") technique.mordent = true;
+            else if (it === "up" || it === "↗" || it === "上滑") technique.slideUp = true;
+            else if (it === "down" || it === "↘" || it === "下滑") technique.slideDown = true;
+            else if (it === "T" || it === "K" || it === "TK" || it === "TKT") technique.tonguing = it as any;
+            else if (it === "fl" || it === "花舌") technique.flutter = true;
+            else if (it === "vib" || it === "气震") technique.vibrato = true;
+            else if (it === "gli" || it === "历音") technique.glissando = true;
+            else decorators.push(it);
+          }
           i = close + 1;
         }
       }
-      tokens.push({ t: "note", digit, octave, dotted, accidentals, decorators });
+      tokens.push({
+        t: "note",
+        digit,
+        octave,
+        dotted,
+        accidentals,
+        decorators,
+        graceNotes,
+        technique: Object.keys(technique).length ? technique : undefined,
+      });
       continue;
     }
     throw new SyntaxError(`位置 ${i}：无法识别的字符 "${c}"`);
@@ -222,6 +305,8 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
         dotted: tk.dotted,
         prefixAccidentals: tk.accidentals,
         topDecorators: tk.decorators,
+        graceNotes: tk.graceNotes as any,
+        technique: tk.technique,
       });
       if (pendingTieFrom) {
         pendingTieFrom.tieTo = n.key;
@@ -254,7 +339,9 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
       if (tk.repeat === "start") barType = REPEAT_START;
       else if (tk.repeat === "end") barType = REPEAT_END;
       else if (tk.double) barType = DOUBLE_BAR;
-      notations.push(createBar(barType));
+      const b = createBar(barType);
+      if (tk.volta) b.volta = tk.volta;
+      notations.push(b);
     } else if (tk.t === "tie") {
       const prev = notations[notations.length - 1];
       if (prev && isSounding(prev)) pendingTieFrom = prev;

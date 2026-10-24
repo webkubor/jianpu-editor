@@ -16,12 +16,30 @@ export function toDsl(score: Score): string {
     const tieDone = new Set<string>();
     for (const n of para.notations) {
       if (n.note === "│" || n.note === "‖" || n.note === "||:" || n.note === ":||") {
-        tokens.push(n.note === "│" ? "|" : n.note === "‖" ? "‖" : n.note);
+        let b = n.note === "│" ? "|" : n.note === "‖" ? "‖" : n.note;
+        if (n.volta) b = `[${n.volta}]` + b;
+        tokens.push(b);
         continue;
       }
-      let token = n.note === "─" ? "-" : n.prefixAccidentals.join("").replaceAll("♯", "#").replaceAll("♭", "b") + n.note
+      let prefix = "";
+      if (n.graceNotes && n.graceNotes.length > 0) {
+        prefix = `(${n.graceNotes.map(g => (g.octave > 0 ? "^".repeat(g.octave) : ",".repeat(-g.octave)) + g.note).join("")})`;
+      }
+      let techItems: string[] = [];
+      if (n.technique) {
+        if (n.technique.trill) techItems.push("tr");
+        if (n.technique.mordent) techItems.push("mordent");
+        if (n.technique.slideUp) techItems.push("up");
+        if (n.technique.slideDown) techItems.push("down");
+        if (n.technique.tonguing) techItems.push(n.technique.tonguing);
+        if (n.technique.flutter) techItems.push("fl");
+        if (n.technique.vibrato) techItems.push("vib");
+        if (n.technique.glissando) techItems.push("gli");
+      }
+      const allDecorators = [...(n.topDecorators || []), ...techItems];
+      let token = prefix + (n.note === "─" ? "-" : n.prefixAccidentals.join("").replaceAll("♯", "#").replaceAll("♭", "b") + n.note)
         + "^".repeat(Math.max(0, n.octave)) + ",".repeat(Math.max(0, -n.octave)) + (n.dotted ? "." : "")
-        + (n.topDecorators && n.topDecorators.length ? `{${n.topDecorators.join(",")}}` : "");
+        + (allDecorators.length ? `{${allDecorators.join(",")}}` : "");
       const beats = n.beatFrac ?? 1 / 2 ** Math.min(3, n.underline);
       token += `:${fmtBeats(beats)}/${n.underline}`;
       if (n.tieTo && !tieDone.has(n.key)) {

@@ -62,6 +62,9 @@ export function deserializeScore(json: string): Score | null {
           topDecorators: Array.isArray(n.topDecorators) ? n.topDecorators : [],
           tieTo: n.tieTo ? String(n.tieTo) : null,
           beatFrac: typeof n.beatFrac === "number" && n.beatFrac > 0 ? n.beatFrac : undefined,
+          graceNotes: Array.isArray(n.graceNotes) ? n.graceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0 })) : undefined,
+          technique: n.technique && typeof n.technique === "object" ? { ...n.technique } : undefined,
+          volta: n.volta ? String(n.volta) : undefined,
         })),
       })),
     };

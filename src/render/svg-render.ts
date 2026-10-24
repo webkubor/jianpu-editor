@@ -10,6 +10,7 @@
 import { BAR, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, isPitchable } from "../core/model.ts";
 import type { Notation, Paragraph, Score } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
+import { A4_PAGE, paginateScore, type ScorePage } from "./pagination.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
@@ -88,7 +89,9 @@ function measureGlyph(n: Notation): Glyph {
     return { n, core: 14, width: 14 + LAYOUT.minGap * 1.8 };
   }
   const acc = n.prefixAccidentals.join("");
-  const core = textWidth(n.note, LAYOUT.fontSize) + (acc ? textWidth(acc, LAYOUT.subFontSize) + 2 : 0) + (n.dotted ? 8 : 0);
+  const graceLen = n.graceNotes?.length || 0;
+  const graceWidth = graceLen ? graceLen * 12 + 6 : 0;
+  const core = textWidth(n.note, LAYOUT.fontSize) + (acc ? textWidth(acc, LAYOUT.subFontSize) + 2 : 0) + (n.dotted ? 8 : 0) + graceWidth;
   return { n, core, width: core + LAYOUT.minGap };
 }
 
@@ -110,6 +113,17 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
     if (n.note === "‖") {
       group.appendChild(el("line", { x1: 4, y1: -h / 2 - 4, x2: 4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
+    }
+    // 跳房子反复门楼标记 (Volta brackets: 1. 或 2.)
+    if (n.volta) {
+      const vY = -34;
+      group.appendChild(el("path", {
+        d: `M -6 ${vY + 12} L -6 ${vY} L 45 ${vY}`,
+        stroke: "currentColor", fill: "none", "stroke-width": 1.2, class: "volta-bracket",
+      }));
+      group.appendChild(el("text", {
+        x: 4, y: vY + 9, "font-size": 11, "font-weight": 700, "font-family": "Times New Roman, serif",
+      }, n.volta));
     }
     return group;
   }
@@ -138,8 +152,44 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       transform: "scale(0.9,1)",
     }, EXTEND));
   } else {
+    // 前置倚音小音符渲染（如 ⁵ 或 ³⁵，位于左上方，带小斜线与小圆弧连线）
+    let mainXOffset = 0;
+    if (n.graceNotes && n.graceNotes.length > 0) {
+      const gCount = n.graceNotes.length;
+      const startGx = -g.core / 2;
+      n.graceNotes.forEach((gn, gi) => {
+        const gx = startGx + gi * 12 + 5;
+        const gy = -10;
+        // 小数字
+        group.appendChild(el("text", {
+          x: gx,
+          y: gy,
+          "text-anchor": "middle",
+          "dominant-baseline": "middle",
+          "font-size": 13,
+          "font-weight": 600,
+          class: "grace-note",
+        }, gn.note));
+        // 倚音八度点
+        if (gn.octave !== 0) {
+          const gOctY = gn.octave > 0 ? gy - 8 : gy + 8;
+          group.appendChild(el("circle", { cx: gx, cy: gOctY, r: 1.5, fill: "currentColor" }));
+        }
+        // 倚音下方的双微型减时线
+        group.appendChild(el("line", { x1: gx - 4, y1: gy + 7, x2: gx + 4, y2: gy + 7, stroke: "currentColor", "stroke-width": 0.9 }));
+        group.appendChild(el("line", { x1: gx - 4, y1: gy + 9.5, x2: gx + 4, y2: gy + 9.5, stroke: "currentColor", "stroke-width": 0.9 }));
+      });
+      // 倚音到主音的小连弧线
+      const arcEndX = -g.core / 2 + gCount * 12 + 6;
+      group.appendChild(el("path", {
+        d: `M ${startGx} -3 Q ${startGx + 4} 2 ${arcEndX} -2`,
+        stroke: "currentColor", fill: "none", "stroke-width": 0.9,
+      }));
+      mainXOffset = gCount * 12 / 2;
+    }
+
     // 升降号
-    let accX = -g.core / 2;
+    let accX = -g.core / 2 + mainXOffset;
     for (const a of n.prefixAccidentals) {
       group.appendChild(el("text", {
         x: accX + textWidth(a, LAYOUT.subFontSize) / 2,
@@ -152,6 +202,7 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     }
     // 主体数字
     group.appendChild(el("text", {
+      x: mainXOffset,
       "text-anchor": "middle",
       "dominant-baseline": "middle",
       "font-size": LAYOUT.fontSize,
@@ -162,18 +213,103 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     group.appendChild(el("circle", { cx: g.core / 2 + 3, cy: 5, r: LAYOUT.dotR, fill: "currentColor" }));
   }
   // 八度点
+  const mainX = (n.graceNotes?.length || 0) * 12 / 2;
   const dir = n.octave > 0 ? -1 : 1;
   const y0 = n.octave > 0 ? LAYOUT.dotAboveY : LAYOUT.dotBelowY;
   for (let i = 0; i < Math.abs(n.octave); i += 1) {
-    group.appendChild(el("circle", { cx: 0, cy: y0 + dir * LAYOUT.dotStep * i, r: LAYOUT.dotR, fill: "currentColor" }));
+    group.appendChild(el("circle", { cx: mainX, cy: y0 + dir * LAYOUT.dotStep * i, r: LAYOUT.dotR, fill: "currentColor" }));
   }
+
+  // 民族管乐专属技巧记号渲染 (tr 颤音 / ↗ 上滑音 / ↘ 下滑音 / T/K 吐音 / ~ 波音 / fl 花舌 / vib 气震音)
+  const tech = n.technique;
+  let techTopY = n.octave > 0 ? LAYOUT.dotAboveY - LAYOUT.dotStep * (n.octave - 1) - 10 : -18;
+
+  if (tech) {
+    if (tech.trill) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 13,
+        "font-weight": 700,
+        "font-style": "italic",
+        class: "wind-tech-trill",
+      }, "tr"));
+      techTopY -= 12;
+    }
+    if (tech.mordent) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 14,
+        class: "wind-tech-mordent",
+      }, "∿"));
+      techTopY -= 11;
+    }
+    if (tech.tonguing) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 11,
+        "font-weight": 700,
+        class: "wind-tech-tonguing",
+      }, tech.tonguing));
+      techTopY -= 10;
+    }
+    if (tech.slideUp) {
+      group.appendChild(el("text", {
+        x: mainX + g.core / 2 - 2,
+        y: -12,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 14,
+        class: "wind-tech-slide-up",
+      }, "↗"));
+    }
+    if (tech.slideDown) {
+      group.appendChild(el("text", {
+        x: mainX + g.core / 2 - 2,
+        y: -4,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 14,
+        class: "wind-tech-slide-down",
+      }, "↘"));
+    }
+    if (tech.flutter) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 11,
+        "font-style": "italic",
+      }, "fl"));
+      techTopY -= 10;
+    }
+    if (tech.vibrato) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 13,
+      }, "〰"));
+      techTopY -= 10;
+    }
+  }
+
   // 顶部装饰记号（自由文本或常见音符表情记号：如 ▾ 顿音/跳音、⌒ 保持音、𝄐 延长记号等）
   if (n.topDecorators && n.topDecorators.length > 0) {
-    const octOffset = n.octave > 0 ? LAYOUT.dotAboveY - LAYOUT.dotStep * (n.octave - 1) - 10 : -16;
     n.topDecorators.forEach((dec, idx) => {
       group.appendChild(el("text", {
-        x: 0,
-        y: octOffset - idx * 12,
+        x: mainX,
+        y: techTopY - idx * 12,
         "text-anchor": "middle",
         "dominant-baseline": "middle",
         "font-size": 13,
@@ -196,15 +332,217 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
   return group;
 }
 
-/** 渲染整份乐谱到一个容器 */
-export function renderScore(
+/** 渲染单个标准 A4 页面卡片 SVG */
+export function renderPageSvg(
+  page: ScorePage,
+  totalPages: number,
+  score: Score,
+  selectedKey: string | null = null,
+  cursorPos: { paragraph: number; itemIndex: number } | null = null
+): SVGSVGElement {
+  const svg = el("svg", {
+    viewBox: `0 0 ${A4_PAGE.width} ${A4_PAGE.height}`,
+    width: "100%",
+    class: "score-svg a4-page-card",
+    xmlns: "http://www.w3.org/2000/svg",
+  });
+
+  // 第一页绘制完整曲名大标题与调号作者
+  if (page.pageIndex === 0) {
+    svg.appendChild(el("text", {
+      x: A4_PAGE.width / 2, y: 46,
+      "text-anchor": "middle", "font-size": 26, "font-weight": 700,
+      class: "score-main-title",
+    }, score.title));
+
+    const header = `1 = ${score.tone}    ${score.beat[0]}/${score.beat[1]}    ♩= ${score.speed}`;
+    svg.appendChild(el("text", {
+      x: A4_PAGE.marginLeft, y: 80,
+      "font-size": LAYOUT.headerFontSize,
+      fill: "var(--bloom-text-muted, #727a80)",
+    }, header));
+
+    svg.appendChild(el("text", {
+      x: A4_PAGE.width - A4_PAGE.marginRight, y: 80,
+      "text-anchor": "end",
+      "font-size": LAYOUT.headerFontSize,
+      fill: "var(--bloom-text-muted, #727a80)",
+    }, score.authors.join("  ")));
+  } else {
+    // 后续页简略页眉：微型曲名居中
+    svg.appendChild(el("text", {
+      x: A4_PAGE.width / 2, y: 36,
+      "text-anchor": "middle", "font-size": 13, fill: "var(--bloom-text-muted, #999)",
+      "letter-spacing": "1px",
+    }, `— ${score.title} —`));
+  }
+
+  // 页脚页码：第 X 页 / 共 Y 页
+  svg.appendChild(el("text", {
+    x: A4_PAGE.width / 2, y: A4_PAGE.footerY,
+    "text-anchor": "middle", "font-size": 12, fill: "var(--bloom-text-muted, #888)",
+  }, `第 ${page.pageIndex + 1} 页 / 共 ${totalPages} 页`));
+
+  let yOffset = page.pageIndex === 0 ? 128 : A4_PAGE.marginTop;
+  const contentWidth = A4_PAGE.width - A4_PAGE.marginLeft - A4_PAGE.marginRight;
+
+  for (const r of page.rows) {
+    const para = score.paragraphs[r.paraIndex];
+    if (!para) continue;
+    const rowGlyphs = r.rowGlyphs;
+    const totalWidth = rowGlyphs.reduce((s, g) => s + g.width, 0);
+
+    const shouldJustify = r.alignJustify && rowGlyphs.length > 1 && totalWidth < contentWidth &&
+      (!r.isLastRowOfPara || totalWidth >= contentWidth * 0.65);
+    const flex = shouldJustify ? (contentWidth - totalWidth) / (rowGlyphs.length - 1) : 0;
+
+    let x = A4_PAGE.marginLeft;
+    const row = el("g", { class: "paragraph", "data-para": String(r.paraIndex), transform: `translate(0, ${yOffset})` });
+
+    if (cursorPos && cursorPos.paragraph === r.paraIndex && cursorPos.itemIndex === 0 && r.rowInPara === 0) {
+      row.appendChild(el("line", {
+        x1: A4_PAGE.marginLeft - 2, y1: -20, x2: A4_PAGE.marginLeft - 2, y2: 20,
+        stroke: "var(--accent, #ea580c)", "stroke-width": 2, class: "editor-caret",
+      }));
+    }
+
+    let soundingIdx = para.lyrics.length ? countSoundingBefore(score, para, rowGlyphs[0]?.n.key ?? "") : 0;
+    const tieFrom = new Map<string, Notation>();
+    para.notations.forEach((n, i) => {
+      if (!n.tieTo) return;
+      const j = para.notations.findIndex(o => o.key === n.tieTo);
+      if (j > i) tieFrom.set(para.notations[j].key, n);
+    });
+
+    rowGlyphs.forEach((g) => {
+      const cx = x + g.width / 2;
+      const from = tieFrom.get(g.n.key);
+      if (from) {
+        const fromGlyph = rowGlyphs.find(gg => gg.n.key === from.key);
+        const toCx = cx - A4_PAGE.marginLeft;
+        const arc = tieArc(rowGlyphs.map(gg => gg.width), fromGlyph ? rowGlyphs.indexOf(fromGlyph) : -1, flex, toCx);
+        if (arc) {
+          row.appendChild(el("path", {
+            d: arc,
+            stroke: "currentColor", fill: "none", "stroke-width": 1.2, class: "tie",
+          }));
+        }
+      }
+
+      const glyph = renderGlyph(g, cx, 0, g.n.key === selectedKey);
+      const noteIdx = para.notations.indexOf(g.n);
+      glyph.setAttribute("data-idx", String(noteIdx));
+      if (isPitchable(g.n) || g.n.note === EXTEND) {
+        glyph.setAttribute("data-sounding", String(countSoundingIdx(para, g.n)));
+      }
+      row.appendChild(glyph);
+
+      if (cursorPos && cursorPos.paragraph === r.paraIndex && cursorPos.itemIndex === noteIdx + 1) {
+        const caretX = cx + g.width / 2;
+        row.appendChild(el("line", {
+          x1: caretX, y1: -20, x2: caretX, y2: 20,
+          stroke: "var(--accent, #ea580c)", "stroke-width": 2, class: "editor-caret",
+        }));
+      }
+
+      if (isPitchable(g.n) || g.n.note === EXTEND) {
+        soundingIdx += 1;
+        const word = para.lyrics[soundingIdx - 1] ?? "";
+        if (word) {
+          row.appendChild(el("text", {
+            x: cx, y: LAYOUT.lyricDy,
+            "text-anchor": "middle",
+            "font-size": LAYOUT.lyricFontSize,
+            class: "lyric",
+            "data-sounding": String(soundingIdx - 1),
+          }, word));
+        }
+      }
+      x += g.width + flex;
+    });
+
+    // 三连音括弧排版
+    let tIdx = 0;
+    while (tIdx <= rowGlyphs.length - 3) {
+      const isTri = (gg: typeof rowGlyphs[0]) =>
+        isPitchable(gg.n) && gg.n.beatFrac !== undefined && Math.abs(gg.n.beatFrac - 1 / 3) < 0.01;
+      if (isTri(rowGlyphs[tIdx]) && isTri(rowGlyphs[tIdx + 1]) && isTri(rowGlyphs[tIdx + 2])) {
+        const maxOct = Math.max(
+          rowGlyphs[tIdx].n.octave,
+          rowGlyphs[tIdx + 1].n.octave,
+          rowGlyphs[tIdx + 2].n.octave
+        );
+        const topY = maxOct > 0 ? -24 - maxOct * LAYOUT.dotStep - 4 : -24;
+        const c0 = rowCenterX(rowGlyphs.map(gg => gg.width), tIdx, flex);
+        const c2 = rowCenterX(rowGlyphs.map(gg => gg.width), tIdx + 2, flex);
+        const { pathD, midX, textY } = tupletBracketD(c0, c2, topY);
+
+        row.appendChild(el("path", {
+          d: pathD,
+          stroke: "currentColor", fill: "none", "stroke-width": 1.1, class: "tuplet-bracket",
+        }));
+        row.appendChild(el("text", {
+          x: midX,
+          y: textY,
+          "text-anchor": "middle",
+          "dominant-baseline": "middle",
+          "font-size": 11,
+          "font-style": "italic",
+          "font-family": "Times New Roman, serif",
+          class: "tuplet-number",
+        }, "3"));
+        tIdx += 3;
+      } else {
+        tIdx += 1;
+      }
+    }
+
+    svg.appendChild(row);
+    yOffset += r.rowHeight;
+  }
+
+  return svg;
+}
+
+/** 渲染全部多页乐谱为独立 SVG 列表（供多页打印、多页导出用） */
+export function renderScorePagesSvgs(
+  score: Score,
+  selectedKey: string | null = null,
+  cursorPos: { paragraph: number; itemIndex: number } | null = null
+): SVGSVGElement[] {
+  const pages = paginateScore(score, measureGlyph);
+  if (score.paragraphs.every(p => p.notations.length === 0)) {
+    return [renderScoreSvg(score, selectedKey, cursorPos)];
+  }
+  return pages.map(p => renderPageSvg(p, pages.length, score, selectedKey, cursorPos));
+}
+export function renderScorePages(
   container: HTMLElement,
   score: Score,
-  selectedKey: string | null,
+  selectedKey: string | null = null,
   cursorPos: { paragraph: number; itemIndex: number } | null = null
-): void {
+): SVGSVGElement[] {
+  const pages = paginateScore(score, measureGlyph);
   container.innerHTML = "";
-  container.appendChild(renderScoreSvg(score, selectedKey, cursorPos));
+  const svgs: SVGSVGElement[] = [];
+
+  if (score.paragraphs.every(p => p.notations.length === 0)) {
+    // 空谱单卡提示
+    const singleSvg = renderScoreSvg(score, selectedKey, cursorPos);
+    container.appendChild(singleSvg);
+    return [singleSvg];
+  }
+
+  pages.forEach(p => {
+    const pageCard = document.createElement("div");
+    pageCard.className = "page-card-wrapper";
+    const svg = renderPageSvg(p, pages.length, score, selectedKey, cursorPos);
+    pageCard.appendChild(svg);
+    container.appendChild(pageCard);
+    svgs.push(svg);
+  });
+
+  return svgs;
 }
 
 /** 渲染为独立 SVG 元素（画布与打印导出共用） */

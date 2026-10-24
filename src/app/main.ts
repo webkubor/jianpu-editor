@@ -5,7 +5,7 @@
  */
 
 import { EditorState } from "./editor-state.ts";
-import { renderScore, renderScoreSvg } from "../render/svg-render.ts";
+import { renderScorePages, renderScorePagesSvgs, renderScoreSvg } from "../render/svg-render.ts";
 import { Player, compileEvents, midiOf, timeBefore, toMidi } from "../core/player.ts";
 import { compileScore } from "../core/dsl.ts";
 import { toDsl } from "../core/dsl-export.ts";
@@ -93,7 +93,7 @@ function selectedKey(): string | null {
 
 /** 渲染 + 自动保存 + 拍数校验 */
 function refresh(): void {
-  renderScore(canvas, state.score, selectedKey(), { paragraph: state.paragraphIndex, itemIndex: state.itemIndex });
+  renderScorePages(canvas, state.score, selectedKey(), { paragraph: state.paragraphIndex, itemIndex: state.itemIndex });
   autosave(state.score);
   (document.getElementById("undo") as HTMLButtonElement).disabled = !state.canUndo;
   (document.getElementById("redo") as HTMLButtonElement).disabled = !state.canRedo;
@@ -588,28 +588,35 @@ document.getElementById("export-svg")?.addEventListener("click", () => {
   downloadText(xml, `${sanitizeFilename(state.score.title || "简谱")}.svg`);
 });
 
-/** 打印 / 另存为 PDF：新窗口只含乐谱 SVG，优化 A4 打印与页边距样式 */
+/** 打印 / 另存为 PDF：优化多页 A4 独立卡片打印与精准物理分页样式 */
 document.getElementById("print")?.addEventListener("click", () => {
-  const svg = renderScoreSvg(state.score, null);
+  const pageSvgs = renderScorePagesSvgs(state.score, null);
   const w = window.open("", "_blank");
   if (!w) return;
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>简谱</title>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${state.score.title}</title>
     <style>
-      @page { size: A4 portrait; margin: 15mm 12mm; }
-      body { margin: 24px auto; max-width: 860px; font-family: "Songti SC", "SimSun", serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: A4 portrait; margin: 12mm 10mm; }
+      body { margin: 0 auto; max-width: 860px; font-family: "Songti SC", "SimSun", serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff; }
+      .print-page { page-break-after: always; break-after: page; width: 100%; margin-bottom: 24px; }
+      .print-page:last-child { page-break-after: auto; break-after: auto; margin-bottom: 0; }
       svg { width: 100%; height: auto; display: block; }
       @media print {
         body { margin: 0; max-width: none; }
+        .print-page { margin-bottom: 0; }
       }
     </style>
     </head><body></body></html>`);
-  w.document.title = state.score.title;
-  w.document.body.appendChild(w.document.importNode(svg, true));
+  pageSvgs.forEach((svg) => {
+    const pageWrapper = w.document.createElement("div");
+    pageWrapper.className = "print-page";
+    pageWrapper.appendChild(w.document.importNode(svg, true));
+    w.document.body.appendChild(pageWrapper);
+  });
   w.document.close();
   w.focus();
   setTimeout(() => {
     w.print();
-  }, 100);
+  }, 120);
 });
 
 /** 处理载入文件（支持 .jianpu.json 工程文件与 .mid/.midi 二进制文件） */

@@ -24,6 +24,34 @@ export type Accidental = "♯" | "♭";
 /** 顶部装饰（如力度记号、装饰音标记，自由文本） */
 export type TopDecorator = string;
 
+/** 倚音 / 装饰音单元（前置微型音符，带微型减时线与连接斜弧） */
+export interface GraceNote {
+  note: NoteDigit;
+  octave: number;
+}
+
+/** 管乐专属技巧记号 */
+export interface WindTechnique {
+  /** 颤音 (tr) */
+  trill?: boolean;
+  /** 波音 (mordent, 如 ~ 上波音) */
+  mordent?: boolean;
+  /** 上滑音 (↗ 或 ⤻) */
+  slideUp?: boolean;
+  /** 下滑音 (↘ 或 ⤿) */
+  slideDown?: boolean;
+  /** 吐音：单吐 T、双吐 TK、三吐 TKT */
+  tonguing?: "T" | "K" | "TK" | "TKT";
+  /** 历音 (glissando / 快速扫音) */
+  glissando?: boolean;
+  /** 气震音 / 腹颤音 (vibrato ~~~) */
+  vibrato?: boolean;
+  /** 花舌 (flutter tongue, 标注 * 或 fl) */
+  flutter?: boolean;
+  /** 叠音 (上叠音) */
+  appoggiatura?: boolean;
+}
+
 /** 一个记谱符号：音符 / 休止符 / 小节线 / 延音线 */
 export interface Notation {
   /** 唯一键（编辑定位用） */
@@ -46,6 +74,12 @@ export interface Notation {
   tieTo: string | null;
   /** 真实时值（拍）：组内 n 音平分一拍时为 1/n（如三连音 1/3）；缺省回退 1/2^underline 折算 */
   beatFrac?: number;
+  /** 前置倚音小音符列表（如 ⁵ 或 ³⁵） */
+  graceNotes?: GraceNote[];
+  /** 管乐专属技巧记号 (吐音/滑音/颤音等) */
+  technique?: WindTechnique;
+  /** 反复跳跃房子标注（如 "1." 或 "2."，在小节上方画横跨门楼线） */
+  volta?: string;
 }
 
 /** 段落（一行乐谱） */
