@@ -27,8 +27,10 @@ const state = new EditorState(initialScore());
 const player = new Player();
 const canvas = document.getElementById("canvas")!;
 const titleInput = document.getElementById("score-title") as HTMLInputElement;
+const beatSelect = document.getElementById("beat") as HTMLSelectElement;
 const toneSelect = document.getElementById("tone") as HTMLSelectElement;
 const speedInput = document.getElementById("speed") as HTMLInputElement;
+const authorsInput = document.getElementById("authors") as HTMLInputElement;
 const dslArea = document.getElementById("dsl") as HTMLTextAreaElement;
 // DSL 面板是双向入口：画布编辑会回写 DSL 文本，但用户手打的草稿不能被覆盖（点「导入」或外部灌入后才清除标记）
 let dslDirty = false;
@@ -52,8 +54,10 @@ function refresh(): void {
   (document.getElementById("redo") as HTMLButtonElement).disabled = !state.canRedo;
   titleInput.value = state.score.title;
   document.title = `${state.score.title} · 简谱编辑器`;
+  beatSelect.value = `${state.score.beat[0]}/${state.score.beat[1]}`;
   toneSelect.value = state.score.tone;
   speedInput.value = String(state.score.speed);
+  authorsInput.value = state.score.authors.join("  ");
   if (!dslDirty) dslArea.value = toDsl(state.score);  const issues = validateScore(state.score);
   const warn = issues.length
     ? ` · ⚠ ${issues.length} 个小节拍数异常（${issues.slice(0, 2).map((i) => `段${i.paragraph + 1}小节${i.bar + 1}:${i.beats}/${i.expected}拍`).join("、")}）`
@@ -276,6 +280,16 @@ document.getElementById("undo")?.addEventListener("click", () => state.undo());
 document.getElementById("redo")?.addEventListener("click", () => state.redo());
 titleInput.addEventListener("change", () => {
   state.setTitle(titleInput.value);
+});
+beatSelect.addEventListener("change", () => {
+  const parts = beatSelect.value.split("/").map(Number);
+  if (parts.length === 2 && parts[0] > 0 && parts[1] > 0) {
+    state.setBeat([parts[0], parts[1]]);
+  }
+});
+authorsInput.addEventListener("change", () => {
+  const raw = authorsInput.value.split(/[,，\s]+/).filter(Boolean);
+  state.setAuthors(raw);
 });
 document.getElementById("transpose-up")?.addEventListener("click", () => state.transpose(1));
 document.getElementById("transpose-down")?.addEventListener("click", () => state.transpose(-1));

@@ -48,6 +48,22 @@ test("timeBefore：光标处播放起点=光标前总时值，跨段累计", () 
   assert.ok(Math.abs(timeBefore(score, 1, 0) - 2 * secBeat) < 1e-9);
 });
 
+test("setBeat / setAuthors：拍号与作者修改可撤销、同值早退且不清栈", () => {
+  const st = new EditorState(compileScore("1 2 3 -"));
+  st.setBeat([3, 4]);
+  assert.deepEqual(st.score.beat, [3, 4]);
+  assert.equal(st.canUndo, true);
+  // 同值不进历史
+  st.setBeat([3, 4]);
+  st.setAuthors(["周杰伦 作曲", "方文山 作词"]);
+  assert.deepEqual(st.score.authors, ["周杰伦 作曲", "方文山 作词"]);
+  st.undo();
+  assert.deepEqual(st.score.authors, ["佚名  作词", "简谱编辑器  制谱"]);
+  st.undo();
+  assert.deepEqual(st.score.beat, [4, 4]);
+  assert.equal(st.canUndo, false);
+});
+
 test("删段：removeParagraph 删除当前段，光标进邻段；最后一段清空不删", () => {
   const st = new EditorState(compileScore("1 2\n3 4\n5 6"));
   st.moveParagraph(1);

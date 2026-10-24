@@ -98,8 +98,16 @@
   <header>
     <h1>简谱编辑器</h1>
     <label>曲名 <input id="score-title" type="text" maxlength="120" value="未命名" /></label>
-<label>调 <select id="tone"><option value="♭A">1=♭A</option><option value="A">1=A</option><option value="♭B">1=♭B</option><option value="B">1=B</option><option value="C" selected>1=C</option><option value="♭D">1=♭D</option><option value="D">1=D</option><option value="♭E">1=♭E</option><option value="E">1=E</option><option value="F">1=F</option><option value="♭G">1=♭G</option><option value="G">1=G</option></select></label>
+    <label>拍号 <select id="beat">
+      <option value="2/4">2/4</option>
+      <option value="3/4">3/4</option>
+      <option value="4/4" selected>4/4</option>
+      <option value="3/8">3/8</option>
+      <option value="6/8">6/8</option>
+    </select></label>
+    <label>调 <select id="tone"><option value="♭A">1=♭A</option><option value="A">1=A</option><option value="♭B">1=♭B</option><option value="B">1=B</option><option value="C" selected>1=C</option><option value="♭D">1=♭D</option><option value="D">1=D</option><option value="♭E">1=♭E</option><option value="E">1=E</option><option value="F">1=F</option><option value="♭G">1=♭G</option><option value="G">1=G</option></select></label>
     <label>速度 <input id="speed" type="number" min="20" max="240" value="72" /></label>
+    <label>作者 <input id="authors" type="text" style="width:130px" placeholder="作词 制谱" title="作者/词曲说明，以空格或逗号分隔多条" /></label>
     <button id="transpose-down">♭降半音</button>
     <button id="transpose-up">♯升半音</button>
     <button id="undo" title="撤销上一步（⌘Z / Ctrl+Z）">↶ 撤销</button>

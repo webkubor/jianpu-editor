@@ -522,6 +522,27 @@ export class EditorState {
     this.emit();
   }
 
+  /** 修改拍号（如 [2,4]、[3,4]、[4,4]、[3,8]、[6,8]）。可撤销，不走 replaceScore 以免清撤销栈。 */
+  setBeat(beat: [number, number]): void {
+    if (!Array.isArray(beat) || beat.length !== 2) return;
+    const [num, den] = beat;
+    if (!Number.isInteger(num) || !Number.isInteger(den) || num <= 0 || den <= 0) return;
+    if (this.scoreValue.beat[0] === num && this.scoreValue.beat[1] === den) return;
+    this.snapshot();
+    this.scoreValue = { ...this.scoreValue, beat: [num, den] };
+    this.emit();
+  }
+
+  /** 修改作者行信息（如 ["佚名 作词", "制谱人 制谱"]）。可撤销。 */
+  setAuthors(authors: string[]): void {
+    const list = authors.map((a) => a.trim()).filter(Boolean);
+    const prev = this.scoreValue.authors.join("\u0000");
+    if (list.join("\u0000") === prev) return;
+    this.snapshot();
+    this.scoreValue = { ...this.scoreValue, authors: list.length ? list : ["佚名  作词", "简谱编辑器  制谱"] };
+    this.emit();
+  }
+
   /** 修改曲名并保留编辑光标；空白曲名使用默认值。 */
   setTitle(title: string): void {
     const next = title.trim() || "未命名";
