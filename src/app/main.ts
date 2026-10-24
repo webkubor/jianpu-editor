@@ -138,6 +138,12 @@ window.addEventListener("keydown", (e) => {
     } else if ((e.metaKey || e.ctrlKey) && e.key === "ArrowRight") {
       state.moveToBoundary(true);  // ⌘→ 跳到段尾
       e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "ArrowUp") {
+      state.transpose(1); // ⌘↑ 升半音
+      e.preventDefault();
+    } else if ((e.metaKey || e.ctrlKey) && e.key === "ArrowDown") {
+      state.transpose(-1); // ⌘↓ 降半音
+      e.preventDefault();
     }
     return;
   }
