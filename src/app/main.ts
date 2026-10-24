@@ -12,6 +12,7 @@ import { toDsl } from "../core/dsl-export.ts";
 import { validateScore } from "../core/validate.ts";
 import { createScore, isPitchable } from "../core/model.ts";
 import { autosave, deserializeScore, downloadBinary, downloadScore, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
+import { EXAMPLES } from "../core/examples.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
 function initialScore() {
@@ -461,5 +462,22 @@ document.getElementById("play")?.addEventListener("click", (ev) => {
     .map(e => ({ ...e, start: e.start - from }));
   player.play(events, { onNote: (i, p) => highlightIndex(i, p), onEnd: clearHighlight });
 });
+
+const exampleSelect = document.getElementById("examples") as HTMLSelectElement | null;
+if (exampleSelect) {
+  EXAMPLES.forEach((ex) => {
+    const opt = document.createElement("option");
+    opt.value = ex.id;
+    opt.textContent = ex.name;
+    exampleSelect.appendChild(opt);
+  });
+  exampleSelect.addEventListener("change", () => {
+    const target = EXAMPLES.find((ex) => ex.id === exampleSelect.value);
+    if (target) {
+      state.replaceScore(JSON.parse(JSON.stringify(target.score)));
+      exampleSelect.value = "";
+    }
+  });
+}
 
 refresh();

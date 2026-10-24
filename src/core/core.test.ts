@@ -62,6 +62,20 @@ test("playTone 与 midiOf：音高计算精确，全谱播放时不抢占", asyn
   p.playTone(60);
 });
 
+test("经典曲库示例：送别、康定情歌、茉莉花完整加载且通过节拍校验", async () => {
+  const { EXAMPLES } = await import("./examples.ts");
+  const { validateScore } = await import("./validate.ts");
+  assert.equal(EXAMPLES.length, 3);
+  for (const ex of EXAMPLES) {
+    assert.ok(ex.score.paragraphs.length > 0);
+    assert.ok(ex.score.title.length > 0);
+    assert.ok(ex.score.authors.length > 0);
+    // 所有预设曲目全部通过严苛的小节拍数校验，无异常警告
+    const issues = validateScore(ex.score);
+    assert.deepEqual(issues, [], `${ex.name} 存在小节拍数异常: ${JSON.stringify(issues)}`);
+  }
+});
+
 test("cycleAccidental：升降号循环切换(无->♯->♭->无)，休止符与延音线不参与且给提示，可撤销", () => {
   const st = new EditorState(compileScore("1  0  -"));
   st.move(1); // 选中 1

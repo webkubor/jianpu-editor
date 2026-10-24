@@ -1,0 +1,67 @@
+/**
+ * 经典简谱示例库：包含不同调号、拍号、连音线与歌词组合，供初次体验与实测试听。
+ */
+import type { Score } from "./model.ts";
+import { compileScore } from "./dsl.ts";
+
+export interface ScoreExample {
+  id: string;
+  name: string;
+  score: Score;
+}
+
+export const EXAMPLES: ScoreExample[] = [
+  {
+    id: "song-bie",
+    name: "送别 (4/4 拍 · C 调)",
+    score: compileScore(
+      `5  3 5  ^1  - | 6  ^1  5  - | 5  1 2  3  2 1 | 2  -  -  - |
+[词:长 亭 外 - 边  古 树 旁 - 芳  草 碧 连  天 - - -]
+5  3 5  ^1:1.5/0 7^:0.5/1 | 6  ^1  5  - | 5  2 3  4  7, | 1  -  -  - ‖
+[词:晚 风 拂 - 柳  笛 声 残 - 夕  阳 山 外  山 - - -]`,
+      {
+        title: "送别",
+        tone: "C",
+        beat: [4, 4],
+        speed: 76,
+        authors: ["李叔同  作词", "奥德威  作曲"],
+      }
+    ),
+  },
+  {
+    id: "kang-ding",
+    name: "康定情歌 (2/4 拍 · F 调)",
+    score: compileScore(
+      `1 2  3 5 | 6 5  3 | 2 3  5 6 | 5 3  2 |
+[词:跑 马 溜 溜 的  山 上 - 一 朵 溜 溜 的  云 哟 -]
+1 2  3 5 | 6 5  3 | 2 3  5 3 | 2 1  1 ‖
+[词:端 端 溜 溜 的  照 在 - 康 定 溜 溜 的  城 哟 -]`,
+      {
+        title: "康定情歌",
+        tone: "F",
+        beat: [2, 4],
+        speed: 84,
+        authors: ["四川民歌", "简谱编辑器  制谱"],
+      }
+    ),
+  },
+  {
+    id: "jasmine",
+    name: "茉莉花 (4/4 拍 · G 调)",
+    score: compileScore(
+      `3  3  5  6 | ^1  ^1  6  5 | 5 6  5  -  - |
+[词:好 一 朵 美 丽 的 茉 莉 花 - -]
+3  3  5  6 | ^1  ^1  6  5 | 5 6  5  -  - |
+[词:好 一 朵 美 丽 的 茉 莉 花 - -]
+5  5 3  5  6 | 6  5  -  - | 3 2  1 3  2  - | 1  -  -  - ‖
+[词:芬 芳 美 丽 满 枝 桠 - 又 香 又 白 人 人 夸 - - -]`,
+      {
+        title: "茉莉花",
+        tone: "G",
+        beat: [4, 4],
+        speed: 72,
+        authors: ["江苏民歌", "简谱编辑器  制谱"],
+      }
+    ),
+  },
+];
