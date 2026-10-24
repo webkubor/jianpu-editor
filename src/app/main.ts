@@ -479,19 +479,28 @@ document.getElementById("export-svg")?.addEventListener("click", () => {
   downloadText(xml, `${sanitizeFilename(state.score.title || "简谱")}.svg`);
 });
 
-/** 打印：新窗口只含乐谱 SVG，触发打印对话框 */
+/** 打印 / 另存为 PDF：新窗口只含乐谱 SVG，优化 A4 打印与页边距样式 */
 document.getElementById("print")?.addEventListener("click", () => {
   const svg = renderScoreSvg(state.score, null);
   const w = window.open("", "_blank");
   if (!w) return;
-  w.document.write(`<!DOCTYPE html><html><head><title>简谱</title>
-    <style>body{margin:24px;font-family:"Songti SC",serif}svg{max-width:100%}@media print{body{margin:0}}</style>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>简谱</title>
+    <style>
+      @page { size: A4 portrait; margin: 15mm 12mm; }
+      body { margin: 24px auto; max-width: 860px; font-family: "Songti SC", "SimSun", serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      svg { width: 100%; height: auto; display: block; }
+      @media print {
+        body { margin: 0; max-width: none; }
+      }
+    </style>
     </head><body></body></html>`);
   w.document.title = state.score.title;
   w.document.body.appendChild(w.document.importNode(svg, true));
   w.document.close();
   w.focus();
-  w.print();
+  setTimeout(() => {
+    w.print();
+  }, 100);
 });
 
 /** 处理载入文件（支持 .jianpu.json 工程文件与 .mid/.midi 二进制文件） */
