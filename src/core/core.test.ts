@@ -887,3 +887,27 @@ test("转调同值早退：重复选同一调不产生多余快照", async () =>
   assert.equal(st.score.tone, "C"); // 一次 undo 即回到原调
   assert.equal(st.canUndo, false);
 });
+
+test("MIDI 往返：导出 MIDI 并通过 parseMidiBytes + midiToScore 重新导入为简谱", async () => {
+  const { compileEvents, toMidi } = await import("./player.ts");
+  const { parseMidiBytes, midiToScore } = await import("./midi-import.ts");
+  const original = compileScore("1  2  3  5", { tone: "C", beat: [4, 4], speed: 100 });
+  const midiBytes = toMidi(compileEvents(original), original.speed);
+  // 解析二进制
+  const parsed = parseMidiBytes(midiBytes);
+  assert.equal(parsed.tempoBpm, 100);
+  assert.equal(parsed.notes.length, 4);
+  assert.equal(parsed.notes[0].midi, 60); // C4 = 1
+  assert.equal(parsed.notes[1].midi, 62); // D4 = 2
+  assert.equal(parsed.notes[2].midi, 64); // E4 = 3
+  assert.equal(parsed.notes[3].midi, 67); // G4 = 5
+  // 转换成简谱
+  const score = midiToScore(parsed, { title: "往返测试", tone: "C" });
+  assert.equal(score.title, "往返测试");
+  const soundingNotes = score.paragraphs[0].notations.filter(n => n.note >= "1" && n.note <= "7");
+  assert.equal(soundingNotes.length, 4);
+  assert.equal(soundingNotes[0].note, "1");
+  assert.equal(soundingNotes[1].note, "2");
+  assert.equal(soundingNotes[2].note, "3");
+  assert.equal(soundingNotes[3].note, "5");
+});

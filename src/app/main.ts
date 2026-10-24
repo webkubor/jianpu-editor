@@ -13,6 +13,7 @@ import { validateScore } from "../core/validate.ts";
 import { createScore, isPitchable } from "../core/model.ts";
 import { autosave, deserializeScore, downloadBinary, downloadScore, downloadText, loadAutosave, sanitizeFilename } from "../core/serialize.ts";
 import { EXAMPLES } from "../core/examples.ts";
+import { parseMidiBytes, midiToScore } from "../core/midi-import.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
 function initialScore() {
@@ -479,18 +480,37 @@ document.getElementById("print")?.addEventListener("click", () => {
   w.print();
 });
 
-/** 打开 .jianpu.json */
+/** 打开 .jianpu.json 或导入 .mid / .midi */
 document.getElementById("open")?.addEventListener("change", (e) => {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".mid") || name.endsWith(".midi")) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const bytes = new Uint8Array(reader.result as ArrayBuffer);
+        const parsed = parseMidiBytes(bytes);
+        const title = file.name.replace(/\.[^/.]+$/, "");
+        const score = midiToScore(parsed, { title, tone: state.score.tone });
+        state.replaceScore(score);
+        statusEl.textContent = `成功从 MIDI 导入：${title}（${score.paragraphs[0].notations.length} 符号）`;
+      } catch (err) {
+        statusEl.textContent = `MIDI 解析失败：${(err as Error).message}`;
+      }
+      input.value = "";
+    };
+    reader.readAsArrayBuffer(file);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     const score = deserializeScore(String(reader.result));
     if (score) {
       state.replaceScore(score);
     } else {
-      statusEl.textContent = "文件格式不对：需要 .jianpu.json（本编辑器导出的）";
+      statusEl.textContent = "文件格式不对：需要 .jianpu.json 或标准 .mid / .midi 文件";
     }
     input.value = "";
   };
