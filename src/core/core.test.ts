@@ -48,6 +48,25 @@ test("timeBefore：光标处播放起点=光标前总时值，跨段累计", () 
   assert.ok(Math.abs(timeBefore(score, 1, 0) - 2 * secBeat) < 1e-9);
 });
 
+test("反复记号：||: 与 :|| 词法解析、排版渲染、校验分小节及 DSL 往返保持", async () => {
+  const { compileScore } = await import("./dsl.ts");
+  const { toDsl } = await import("./dsl-export.ts");
+  const { validateScore } = await import("./validate.ts");
+  const score = compileScore("||: 1  2  3  4 :||");
+  const nots = score.paragraphs[0].notations;
+  assert.equal(nots[0].note, "||:");
+  assert.equal(nots[nots.length - 1].note, ":||");
+  // 节拍校验正确识别反复小节线为边界（4 拍小节无异常）
+  assert.deepEqual(validateScore(score), []);
+  // DSL 导出与重编译往返完全一致
+  const exported = toDsl(score);
+  assert.ok(exported.includes("||:"));
+  assert.ok(exported.includes(":||"));
+  const round = compileScore(exported);
+  assert.equal(round.paragraphs[0].notations[0].note, "||:");
+  assert.equal(round.paragraphs[0].notations[round.paragraphs[0].notations.length - 1].note, ":||");
+});
+
 test("playTone 与 midiOf：音高计算精确，全谱播放时不抢占", async () => {
   const { Player, midiOf } = await import("./player.ts");
   const p = new Player();

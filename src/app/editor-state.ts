@@ -14,6 +14,8 @@ import {
   BAR,
   DOUBLE_BAR,
   EXTEND,
+  REPEAT_START,
+  REPEAT_END,
   isPitchable,
 } from "../core/model.ts";
 import type { NoteDigit, Notation, Paragraph, Score } from "../core/model.ts";
@@ -255,12 +257,14 @@ export class EditorState {
     // 小节边界：最近 | 在光标前（不含 itemIdx-1 本身若是 |），下一 | 在光标处或之后
     const cursor = this.itemIdx;
     let start = 0;
+    const isAnyBar = (n: typeof items[number]) =>
+      n.note === BAR || n.note === DOUBLE_BAR || n.note === REPEAT_START || n.note === REPEAT_END;
     for (let i = cursor - 1; i >= 0; i--) {
-      if (items[i].note === BAR || items[i].note === DOUBLE_BAR) { start = i + 1; break; }
+      if (isAnyBar(items[i])) { start = i + 1; break; }
     }
     let end = items.length;
     for (let i = cursor; i < items.length; i++) {
-      if (items[i].note === BAR || items[i].note === DOUBLE_BAR) { end = i; break; }
+      if (isAnyBar(items[i])) { end = i; break; }
     }
     if (end <= start) {
       this.lastNotice = "复制小节：光标处没有可复制的内容";
@@ -285,7 +289,7 @@ export class EditorState {
     });
     const notations = [...items];
     // 副本自带前导小节线（分隔原小节）；原 end 处若已有 | 则吸收为副本右界（防双线）
-    if (end < notations.length && (notations[end].note === BAR || notations[end].note === DOUBLE_BAR)) {
+    if (end < notations.length && isAnyBar(notations[end])) {
       notations.splice(end, 1);
     }
     notations.splice(end, 0, createBar(), ...source);

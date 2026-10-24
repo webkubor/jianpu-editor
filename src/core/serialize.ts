@@ -26,7 +26,7 @@ export function deserializeScore(json: string): Score | null {
     for (const paragraph of d.paragraphs) {
       if (!paragraph || !Array.isArray(paragraph.notations)) return null;
       for (const n of paragraph.notations) {
-        if (!n || !["0", "1", "2", "3", "4", "5", "6", "7", "─", "│", "‖"].includes(n.note)) return null;
+        if (!n || !["0", "1", "2", "3", "4", "5", "6", "7", "─", "│", "‖", "||:", ":||"].includes(n.note)) return null;
         if (n.key !== undefined) {
           if (typeof n.key !== "string" || !n.key || keys.has(n.key)) return null;
           keys.add(n.key);

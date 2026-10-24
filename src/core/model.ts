@@ -12,8 +12,12 @@ export const EXTEND = "─";
 export const BAR = "│";
 /** 终止线 */
 export const DOUBLE_BAR = "‖";
+/** 反复开始记号（左双竖线带两圆点） */
+export const REPEAT_START = "||:";
+/** 反复结束记号（右双竖线带两圆点） */
+export const REPEAT_END = ":||";
 
-export type NoteSymbol = NoteDigit | typeof EXTEND | typeof BAR | typeof DOUBLE_BAR;
+export type NoteSymbol = NoteDigit | typeof EXTEND | typeof BAR | typeof DOUBLE_BAR | typeof REPEAT_START | typeof REPEAT_END;
 
 /** 升降号（渲染在音符左上角） */
 export type Accidental = "♯" | "♭";
@@ -92,8 +96,8 @@ export function createNote(init: Partial<Notation> = {}): Notation {
   };
 }
 
-/** 创建小节线符号 */
-export function createBar(note: typeof BAR | typeof DOUBLE_BAR = BAR): Notation {
+/** 创建小节线符号（单小节线、终止双线、反复开始/结束记号） */
+export function createBar(note: typeof BAR | typeof DOUBLE_BAR | typeof REPEAT_START | typeof REPEAT_END = BAR): Notation {
   return createNote({ note });
 }
 
@@ -107,7 +111,10 @@ export function createParagraph(notes: Notation[] = []): Paragraph {
   return { key: newKey("p"), notations: notes, alignJustify: true, lyrics: [] };
 }
 
-const NOTE_DIGITS: NoteSymbol[] = ["0", "1", "2", "3", "4", "5", "6", "7", EXTEND, BAR, DOUBLE_BAR];
+const NOTE_DIGITS: NoteSymbol[] = [
+  "0", "1", "2", "3", "4", "5", "6", "7",
+  EXTEND, BAR, DOUBLE_BAR, REPEAT_START, REPEAT_END
+];
 
 /** 是否音符/休止符（可参与转调的只有 1-7） */
 export function isPitchable(n: Notation): boolean {

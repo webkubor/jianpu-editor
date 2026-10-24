@@ -21,7 +21,7 @@ export function measureBeats(para: Paragraph): Array<{ start: number; end: numbe
   let start = 0;
   let beats = 0;
   para.notations.forEach((n, i) => {
-    if (n.note === "│" || n.note === "‖") {
+    if (n.note === "│" || n.note === "‖" || n.note === "||:" || n.note === ":||") {
       bars.push({ start, end: i - 1, beats });
       start = i + 1;
       beats = 0;

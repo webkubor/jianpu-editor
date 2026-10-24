@@ -7,7 +7,7 @@
  * - 段落两端对齐：段内间隙 = (页宽 - 实宽) / (符号数-1)。
  */
 
-import { BAR, DOUBLE_BAR, EXTEND, isPitchable } from "../core/model.ts";
+import { BAR, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, isPitchable } from "../core/model.ts";
 import type { Notation, Paragraph, Score } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
 
@@ -84,6 +84,9 @@ function measureGlyph(n: Notation): Glyph {
   if (n.note === "│" || n.note === "‖") {
     return { n, core: 8, width: 8 + LAYOUT.minGap * 1.6 };
   }
+  if (n.note === REPEAT_START || n.note === REPEAT_END) {
+    return { n, core: 14, width: 14 + LAYOUT.minGap * 1.8 };
+  }
   const acc = n.prefixAccidentals.join("");
   const core = textWidth(n.note, LAYOUT.fontSize) + (acc ? textWidth(acc, LAYOUT.subFontSize) + 2 : 0) + (n.dotted ? 8 : 0);
   return { n, core, width: core + LAYOUT.minGap };
@@ -106,6 +109,23 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     const h = 30;
     group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
     if (n.note === "‖") {
+      group.appendChild(el("line", { x1: 4, y1: -h / 2 - 4, x2: 4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
+    }
+    return group;
+  }
+  if (n.note === REPEAT_START || n.note === REPEAT_END) {
+    const h = 30;
+    if (n.note === REPEAT_START) {
+      // 反复开始：左粗右细 + 右侧两圆点
+      group.appendChild(el("line", { x1: -4, y1: -h / 2 - 4, x2: -4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
+      group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
+      group.appendChild(el("circle", { cx: 4, cy: -8, r: 2, fill: "currentColor" }));
+      group.appendChild(el("circle", { cx: 4, cy: 0, r: 2, fill: "currentColor" }));
+    } else {
+      // 反复结束：左侧两圆点 + 左细右粗
+      group.appendChild(el("circle", { cx: -4, cy: -8, r: 2, fill: "currentColor" }));
+      group.appendChild(el("circle", { cx: -4, cy: 0, r: 2, fill: "currentColor" }));
+      group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
       group.appendChild(el("line", { x1: 4, y1: -h / 2 - 4, x2: 4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
     }
     return group;
@@ -206,7 +226,7 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
     para.notations.forEach((n, i) => orderIdx.set(n, i));
     // width 已含基础间隙；优先在已有小节线后断行，超长小节才按符号拆分。
     const rows = wrapRows(glyphs, contentWidth, (g) => g.width,
-      (g) => g.n.note === BAR || g.n.note === DOUBLE_BAR);
+      (g) => g.n.note === BAR || g.n.note === DOUBLE_BAR || g.n.note === REPEAT_START || g.n.note === REPEAT_END);
 
     const paraNo = score.paragraphs.indexOf(para);
     for (const rowGlyphs of rows) {

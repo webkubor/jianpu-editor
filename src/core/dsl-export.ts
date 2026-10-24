@@ -15,8 +15,8 @@ export function toDsl(score: Score): string {
     const words: string[] = [];
     const tieDone = new Set<string>();
     for (const n of para.notations) {
-      if (n.note === "│" || n.note === "‖") {
-        tokens.push(n.note === "│" ? "|" : "‖");
+      if (n.note === "│" || n.note === "‖" || n.note === "||:" || n.note === ":||") {
+        tokens.push(n.note === "│" ? "|" : n.note === "‖" ? "‖" : n.note);
         continue;
       }
       let token = n.note === "─" ? "-" : n.prefixAccidentals.join("").replaceAll("♯", "#").replaceAll("♭", "b") + n.note

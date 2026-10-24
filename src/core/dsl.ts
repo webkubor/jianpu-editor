@@ -14,7 +14,7 @@
  *   为兼容手滑，也把 | 与 - 视为组边界。
  */
 
-import { createBar, createExtend, createNote, createParagraph, DOUBLE_BAR, EXTEND, createScore } from "./model.ts";
+import { BAR, createBar, createExtend, createNote, createParagraph, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, createScore } from "./model.ts";
 import type { NoteDigit, Notation, Paragraph, Score } from "./model.ts";
 
 /** 词法单元 */
@@ -22,7 +22,7 @@ export type Token =
   | { t: "note"; digit: string; octave: number; dotted: boolean; accidentals: ("♯" | "♭")[] }
   | { t: "duration"; beats: number; underline: number }
   | { t: "extend" }
-  | { t: "bar"; double?: boolean }
+  | { t: "bar"; double?: boolean; repeat?: "start" | "end" }
   | { t: "tie" }
   | { t: "lyrics"; words: string[] };
 
@@ -70,6 +70,18 @@ export function tokenizeLine(line: string): LexResult {
       continue;
     }
     spaceRun = 0;
+    // 反复结束记号 :||
+    if (line.slice(i, i + 3) === ":||" || line.slice(i, i + 3) === ":‖") {
+      tokens.push({ t: "bar", repeat: "end" });
+      i += 3;
+      continue;
+    }
+    // 反复开始记号 ||:
+    if (line.slice(i, i + 3) === "||:" || line.slice(i, i + 2) === "‖:") {
+      tokens.push({ t: "bar", repeat: "start" });
+      i += line.slice(i, i + 3) === "||:" ? 3 : 2;
+      continue;
+    }
     // 显式时值后缀 :基础拍数/减时线层数，供无损文本导出。
     if (c === ":") {
       const match = /^:([0-9]+(?:\.[0-9]+)?)\/([0-9]+)/.exec(line.slice(i));
@@ -227,7 +239,11 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
       flushBeat();
       // 小节线打断挂起的连音线（跨线另起音高，不自动连）
       pendingTieFrom = null;
-      notations.push(createBar(tk.double ? DOUBLE_BAR : "│"));
+      let barType: typeof BAR | typeof DOUBLE_BAR | typeof REPEAT_START | typeof REPEAT_END = "│";
+      if (tk.repeat === "start") barType = REPEAT_START;
+      else if (tk.repeat === "end") barType = REPEAT_END;
+      else if (tk.double) barType = DOUBLE_BAR;
+      notations.push(createBar(barType));
     } else if (tk.t === "tie") {
       const prev = notations[notations.length - 1];
       if (prev && isSounding(prev)) pendingTieFrom = prev;
