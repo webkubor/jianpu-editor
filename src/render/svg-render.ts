@@ -231,14 +231,14 @@ export function renderScoreSvg(
   svg.appendChild(el("text", {
     x: LAYOUT.pageMarginX, y: 74,
     "font-size": LAYOUT.headerFontSize,
-    fill: "#666",
+    fill: "var(--bloom-text-muted, #727a80)",
   }, header));
   // 作者行（右对齐）
   svg.appendChild(el("text", {
     x: pageWidth - LAYOUT.pageMarginX, y: 74,
     "text-anchor": "end",
     "font-size": LAYOUT.headerFontSize,
-    fill: "#999",
+    fill: "var(--bloom-text-muted, #727a80)",
   }, score.authors.join("  ")));
 
   let yOffset = 118;
@@ -379,7 +379,7 @@ export function renderScoreSvg(
     // 空谱引导：新用户第一眼知道从哪开始（点击/按键不产生数据，仅提示）
     svg.appendChild(el("text", {
       x: pageWidth / 2, y: yOffset + 48,
-      "text-anchor": "middle", "font-size": 16, fill: "#bbb",
+      "text-anchor": "middle", "font-size": 15, fill: "var(--bloom-text-muted, #8e959b)",
     }, "直接按 1–7 输入音符 · 支持拖拽 .json / .mid 到画布导入 · 或粘贴简谱 (⌘V)"));
     yOffset += 64;
   }

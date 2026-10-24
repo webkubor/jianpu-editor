@@ -7,101 +7,341 @@
   <style>
     :root {
       color-scheme: light;
-      --ink: #1a1a1a;
-      --paper: #faf8f4;
-      --accent: #c2410c;
+      /* ── Bloom 莫兰迪中国风核心色彩 Token 体系 (Cinnabar / 霁红 & 陶瓷灰) ── */
+      --bloom-morandi: 215, 75, 75;
+      --bloom-accent: oklch(55% 0.18 25); /* 莫兰迪霁红 */
+      --bloom-accent-hover: color-mix(in oklch, var(--bloom-accent), black 8%);
+      --bloom-accent-active: color-mix(in oklch, var(--bloom-accent), black 15%);
+      --bloom-accent-soft: color-mix(in oklch, var(--bloom-accent), transparent 88%);
+
+      /* 瓷白微温中性基底 */
+      --bloom-bg: oklch(97% 0.005 25);
+      --bloom-surface: oklch(95.2% 0.005 25);
+      --bloom-surface-2: oklch(92% 0.01 25);
+      --bloom-canvas: #ffffff;
+
+      /* 文字阶梯 (WCAG AA 4.87:1 校准) */
+      --bloom-text: oklch(25% 0.02 25);
+      --bloom-text-secondary: oklch(46% 0.02 25);
+      --bloom-text-muted: color-mix(in oklch, var(--bloom-text), transparent 48%);
+
+      /* 边框与精致阴影 */
+      --bloom-border: color-mix(in oklch, var(--bloom-text), transparent 88%);
+      --bloom-border-subtle: color-mix(in oklch, var(--bloom-text), transparent 93%);
+      --bloom-shadow-sm: 0 2px 8px color-mix(in oklch, var(--bloom-text), transparent 96%);
+      --bloom-shadow: 0 8px 24px color-mix(in oklch, var(--bloom-text), transparent 94%);
+      --bloom-shadow-lg: 0 20px 50px color-mix(in oklch, var(--bloom-text), transparent 90%);
+
+      /* 语义映射 */
+      --ink: var(--bloom-text);
+      --paper: var(--bloom-bg);
+      --accent: var(--bloom-accent);
+      --font-serif: "Songti SC", "Source Han Serif CN", "Noto Serif CJK SC", "SimSun", serif;
+      --font-sans: "PingFang SC", "MiSans", system-ui, -apple-system, sans-serif;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "PingFang SC", "Songti SC", system-ui, sans-serif;
-      background: var(--paper);
-      color: var(--ink);
+      font-family: var(--font-sans);
+      background: var(--bloom-bg);
+      color: var(--bloom-text);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
     }
+
+    /* ── 顶栏：中国风轻质感磨砂玻璃 ── */
     header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 10px 20px;
-      border-bottom: 1px solid #e2ddd2;
-      background: #fff;
+      gap: 10px;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--bloom-border);
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
-    header h1 { font-size: 18px; margin: 0 12px 0 0; }
-    header label { font-size: 13px; color: #666; }
-    header select, header input {
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 6px;
+    }
+    .brand-icon {
+      font-size: 20px;
+      color: var(--bloom-accent);
+      line-height: 1;
+      filter: drop-shadow(0 2px 4px rgba(215, 75, 75, 0.25));
+    }
+    header h1 {
+      font-size: 17px;
+      font-family: var(--font-serif);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin: 0;
+      color: var(--bloom-text);
+      background: linear-gradient(135deg, var(--bloom-text) 0%, color-mix(in oklch, var(--bloom-accent), var(--bloom-text) 60%) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* 表单控件 */
+    header label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--bloom-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    header select, header input[type="text"], header input[type="number"] {
       font-size: 13px;
-      padding: 4px 6px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      padding: 5px 9px;
+      border: 1px solid var(--bloom-border);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--bloom-text);
+      outline: none;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
     }
-    header input[type="number"] { width: 64px; }
+    header select:focus, header input:focus {
+      border-color: var(--bloom-accent);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--bloom-accent), transparent 85%);
+    }
+    header input[type="number"] { width: 58px; text-align: center; }
+
+    /* 按钮组与莫兰迪色彩分级 */
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     button {
-      font-size: 13px;
+      font-size: 12.5px;
+      font-weight: 500;
       padding: 5px 12px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: #fff;
+      border: 1px solid var(--bloom-border);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--bloom-text);
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
-    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:hover {
+      border-color: color-mix(in oklch, var(--bloom-accent), var(--bloom-border) 60%);
+      color: var(--bloom-accent);
+      background: var(--bloom-accent-soft);
+      transform: translateY(-0.5px);
+    }
+    button:active {
+      transform: translateY(0.5px);
+      background: color-mix(in oklch, var(--bloom-accent), transparent 80%);
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      border-color: var(--bloom-border-subtle);
+      background: #fdfdfd;
+      color: var(--bloom-text-muted);
+      transform: none;
+    }
+
+    /* 状态指示区 */
     #status {
       margin-left: auto;
       font-size: 12px;
-      color: #999;
+      color: var(--bloom-text-secondary);
+      background: var(--bloom-surface);
+      padding: 4px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--bloom-border-subtle);
+      white-space: nowrap;
+      letter-spacing: 0.2px;
     }
+
+    /* 主体布局 */
     main {
       display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 16px;
-      padding: 16px 20px;
-      max-width: 1200px;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      padding: 24px;
+      max-width: 1320px;
       margin: 0 auto;
     }
-    #canvas { background: #fff; border: 1px solid #e2ddd2; border-radius: 8px; min-height: 400px; padding: 8px; transition: border-color 0.15s, background-color 0.15s; }
-    #canvas.drag-over { border-color: var(--accent); background-color: #fffaf0; outline: 2px dashed var(--accent); }
-    .score-svg { color: var(--ink); display: block; }
-    .score-svg .glyph { cursor: pointer; }
-    .score-svg .glyph.selected { fill: var(--accent); }
-    .score-svg .glyph.playing { fill: var(--accent); }
-    .score-svg .lyric { fill: #555; }
-    .score-svg .lyric.lyric-playing { fill: var(--accent); font-weight: 700; }
-    .score-svg .editor-caret { animation: caret-blink 1s steps(2, start) infinite; pointer-events: none; }
-    @keyframes caret-blink { to { visibility: hidden; } }
-    #play.btn-playing { background: #fee2e2; border-color: #f87171; color: #b91c1c; font-weight: 600; }
-    #metronome.active { background: #e0f2fe; border-color: #38bdf8; color: #0369a1; font-weight: 600; }
-    aside { display: flex; flex-direction: column; gap: 12px; }
-    aside section {
-      background: #fff;
-      border: 1px solid #e2ddd2;
-      border-radius: 8px;
-      padding: 12px;
+
+    /* 画布：宣纸质感容器 */
+    #canvas {
+      background: #ffffff;
+      border: 1px solid var(--bloom-border);
+      border-radius: 12px;
+      min-height: 520px;
+      padding: 16px 20px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+      box-shadow: var(--bloom-shadow-sm);
+      position: relative;
     }
-    aside h2 { font-size: 14px; margin: 0 0 8px; color: #444; }
+    #canvas.drag-over {
+      border-color: var(--bloom-accent);
+      background-color: var(--bloom-accent-soft);
+      outline: 2px dashed var(--bloom-accent);
+    }
+
+    /* 乐谱 SVG 内部质感 */
+    .score-svg {
+      color: var(--bloom-text);
+      display: block;
+    }
+    .score-svg text {
+      font-family: var(--font-serif);
+      user-select: none;
+    }
+    .score-svg .glyph {
+      cursor: pointer;
+      transition: fill 0.12s ease;
+    }
+    .score-svg .glyph:hover text {
+      fill: var(--bloom-accent);
+    }
+    .score-svg .glyph.selected text {
+      fill: var(--bloom-accent);
+      font-weight: 700;
+    }
+    .score-svg .glyph.playing text {
+      fill: var(--bloom-accent);
+      filter: drop-shadow(0 2px 6px rgba(215, 75, 75, 0.4));
+    }
+    .score-svg .lyric {
+      fill: var(--bloom-text-secondary);
+      font-family: var(--font-serif);
+      letter-spacing: 0.5px;
+    }
+    .score-svg .lyric.lyric-playing {
+      fill: var(--bloom-accent);
+      font-weight: 700;
+    }
+    .score-svg .editor-caret {
+      animation: caret-blink 1s steps(2, start) infinite;
+      pointer-events: none;
+    }
+    @keyframes caret-blink { to { visibility: hidden; } }
+
+    /* 特色高亮按钮态 */
+    #play.btn-playing {
+      background: color-mix(in oklch, var(--bloom-accent), transparent 88%);
+      border-color: var(--bloom-accent);
+      color: var(--bloom-accent);
+      font-weight: 600;
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--bloom-accent), transparent 85%);
+    }
+    #metronome.active {
+      background: color-mix(in oklch, #0284c7, transparent 88%);
+      border-color: #38bdf8;
+      color: #0369a1;
+      font-weight: 600;
+    }
+
+    /* 侧边栏：卡片群 */
+    aside {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    aside section {
+      background: #ffffff;
+      border: 1px solid var(--bloom-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    aside section:hover {
+      box-shadow: var(--bloom-shadow-sm);
+      border-color: color-mix(in oklch, var(--bloom-accent), var(--bloom-border) 40%);
+    }
+    aside h2 {
+      font-size: 13.5px;
+      font-family: var(--font-serif);
+      font-weight: 700;
+      margin: 0 0 10px;
+      color: var(--bloom-text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.3px;
+    }
     aside textarea {
       width: 100%;
       height: 140px;
-      font-family: ui-monospace, monospace;
-      font-size: 13px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 6px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      border: 1px solid var(--bloom-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: var(--bloom-surface);
+      color: var(--bloom-text);
       resize: vertical;
+      line-height: 1.6;
+      transition: all 0.15s ease;
     }
-    .hint { font-size: 12px; color: #888; line-height: 1.7; }
+    aside textarea:focus {
+      outline: none;
+      background: #ffffff;
+      border-color: var(--bloom-accent);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--bloom-accent), transparent 85%);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--bloom-text-secondary);
+      line-height: 1.8;
+    }
     .hint kbd {
-      background: #f0ece2;
-      border: 1px solid #ddd;
-      border-radius: 3px;
-      padding: 0 4px;
+      background: var(--bloom-surface);
+      border: 1px solid var(--bloom-border);
+      border-radius: 4px;
+      padding: 1px 5px;
       font-size: 11px;
+      color: var(--bloom-text);
+      font-family: var(--font-mono);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.05);
     }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* 弹窗设计 */
+    dialog#help-dialog {
+      border: 1px solid var(--bloom-border);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 580px;
+      background: #ffffff;
+      color: var(--bloom-text);
+      box-shadow: var(--bloom-shadow-lg);
+    }
+    dialog#help-dialog::backdrop {
+      background: rgba(30, 25, 25, 0.35);
+      backdrop-filter: blur(4px);
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>简谱编辑器</h1>
+    <div class="brand-group">
+      <span class="brand-icon">🪈</span>
+      <h1>简谱编辑器</h1>
+    </div>
     <label>曲名 <input id="score-title" type="text" maxlength="120" value="未命名" /></label>
     <label>拍号 <select id="beat">
       <option value="2/4">2/4</option>
