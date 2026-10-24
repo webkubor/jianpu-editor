@@ -181,7 +181,7 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       }, dec));
     });
   }
-  // 单音符独立减时线（连排的由段落层绘制）
+  // 独立减时线（连排横线由段落层连线绘制，未连排则画独立横线）
   if (n.underline > 0) {
     for (let i = 0; i < n.underline; i += 1) {
       group.appendChild(el("line", {
@@ -189,6 +189,7 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         y1: LAYOUT.underlineY0 + i * LAYOUT.underlineStep,
         y2: LAYOUT.underlineY0 + i * LAYOUT.underlineStep,
         stroke: "currentColor", "stroke-width": 1.3,
+        class: `underline-line underline-layer-${i}`,
       }));
     }
   }
