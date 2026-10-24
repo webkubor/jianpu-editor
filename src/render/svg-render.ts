@@ -334,10 +334,18 @@ export function renderScoreSvg(
         const isTri = (gg: typeof rowGlyphs[0]) =>
           isPitchable(gg.n) && gg.n.beatFrac !== undefined && Math.abs(gg.n.beatFrac - 1 / 3) < 0.01;
         if (isTri(rowGlyphs[tIdx]) && isTri(rowGlyphs[tIdx + 1]) && isTri(rowGlyphs[tIdx + 2])) {
+          // 避让高音点与装饰记号：如果三连音内含有高音点，将括弧抬高
+          const maxOct = Math.max(
+            rowGlyphs[tIdx].n.octave,
+            rowGlyphs[tIdx + 1].n.octave,
+            rowGlyphs[tIdx + 2].n.octave
+          );
+          const topY = maxOct > 0 ? -24 - maxOct * LAYOUT.dotStep - 4 : -24;
+
           // 计算这 3 个音符在行内的中心 x 坐标
           const c0 = rowCenterX(rowGlyphs.map(gg => gg.width), tIdx, flex);
           const c2 = rowCenterX(rowGlyphs.map(gg => gg.width), tIdx + 2, flex);
-          const { pathD, midX, textY } = tupletBracketD(c0, c2);
+          const { pathD, midX, textY } = tupletBracketD(c0, c2, topY);
 
           // 绘制平滑三连音跨弧 (浅弧线从 c0 上方连到 c2 上方，居中开口或上凸)
           row.appendChild(el("path", {
