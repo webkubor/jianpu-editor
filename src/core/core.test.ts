@@ -931,6 +931,18 @@ test("moveToBoundary：支持直接跳跃到段首 (0) 与段尾 (length)", asyn
   assert.equal(st.itemIndex, 0);
 });
 
+test("Player 音量调节：setVolume 钳制在 0.0 - 1.0 区间", async () => {
+  const { Player } = await import("./player.ts");
+  const p = new Player();
+  assert.equal(p.volume, 0.8);
+  p.setVolume(0.5);
+  assert.equal(p.volume, 0.5);
+  p.setVolume(1.5);
+  assert.equal(p.volume, 1.0);
+  p.setVolume(-0.2);
+  assert.equal(p.volume, 0.0);
+});
+
 test("WAV 编码器：audioBufferToWav 生成标准 RIFF/WAVE 头与 16-bit PCM 字节", async () => {
   const { audioBufferToWav } = await import("./wav-export.ts");
   // 构造模拟 AudioBuffer 对象

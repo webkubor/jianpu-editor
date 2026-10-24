@@ -44,6 +44,11 @@ metronomeBtn?.addEventListener("click", () => {
   metronomeBtn.classList.toggle("active", metronomeEnabled);
   metronomeBtn.textContent = metronomeEnabled ? "⏱ 节拍器 (开)" : "⏱ 节拍器";
 });
+const volumeInput = document.getElementById("volume") as HTMLInputElement | null;
+volumeInput?.addEventListener("input", () => {
+  const vol = Number(volumeInput.value) / 100;
+  player.setVolume(vol);
+});
 dslArea.addEventListener("input", () => { dslDirty = true; });
 dslArea.addEventListener("blur", () => {
   // 离开面板且内容与当前谱一致时视为已同步，恢复自动回写

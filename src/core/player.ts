@@ -211,6 +211,16 @@ export class Player {
   /** play() 调用到结束之间的窗口（playing 的真值来源，与按钮 toggle 态一致） */
   private active = false;
   private timers: number[] = [];
+  /** 主音量系数 (0.0 - 1.0) */
+  private volumeLevel = 0.8;
+
+  setVolume(vol: number): void {
+    this.volumeLevel = Math.max(0, Math.min(1, vol));
+  }
+
+  get volume(): number {
+    return this.volumeLevel;
+  }
 
   /** 播放事件流，支持可选伴奏节拍器 */
   play(events: PlayEvent[], cb: PlayerCallbacks = {}, options: PlayOptions = {}): void {
@@ -239,9 +249,10 @@ export class Player {
       // 音色：基频 + 2次泛音（音量 0.12/0.04）+ 短Attack/Release
       const freq = 440 * 2 ** ((ev.midi - 69) / 12);
       const gain = ctx.createGain();
+      const peakVol = 0.14 * this.volumeLevel;
       gain.gain.setValueAtTime(0, at);
-      gain.gain.linearRampToValueAtTime(0.14, at + 0.02);
-      gain.gain.setValueAtTime(0.14, at + ev.duration * 0.7);
+      gain.gain.linearRampToValueAtTime(peakVol, at + 0.02);
+      gain.gain.setValueAtTime(peakVol, at + ev.duration * 0.7);
       gain.gain.linearRampToValueAtTime(0.0001, at + ev.duration);
       gain.connect(ctx.destination);
       for (const [mult, vol] of [[1, 1], [2, 0.3], [3, 0.12]] as const) {
@@ -331,9 +342,10 @@ export class Player {
       const at = ctx.currentTime + 0.01;
       const freq = 440 * 2 ** ((midi - 69) / 12);
       const gain = ctx.createGain();
+      const peakVol = 0.12 * this.volumeLevel;
       gain.gain.setValueAtTime(0, at);
-      gain.gain.linearRampToValueAtTime(0.12, at + 0.015);
-      gain.gain.setValueAtTime(0.12, at + durationSec * 0.7);
+      gain.gain.linearRampToValueAtTime(peakVol, at + 0.015);
+      gain.gain.setValueAtTime(peakVol, at + durationSec * 0.7);
       gain.gain.linearRampToValueAtTime(0.0001, at + durationSec);
       gain.connect(ctx.destination);
       for (const [mult, vol] of [[1, 1], [2, 0.28], [3, 0.1]] as const) {
