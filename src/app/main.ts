@@ -167,6 +167,16 @@ window.addEventListener("keydown", (e) => {
       else state.backspace();
       e.preventDefault();
       break;
+    case "Delete":
+      if (!state.lyricMode) {
+        // 向右删除 (Delete 键)：如果右侧有符号，光标先右移一位再执行 backspace
+        if (state.itemIndex < state.paragraph.notations.length) {
+          state.move(1);
+          state.backspace();
+        }
+      }
+      e.preventDefault();
+      break;
     case "ArrowLeft":
       state.move(-1);
       e.preventDefault();

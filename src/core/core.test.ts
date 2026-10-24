@@ -911,3 +911,17 @@ test("MIDI 往返：导出 MIDI 并通过 parseMidiBytes + midiToScore 重新导
   assert.equal(soundingNotes[2].note, "3");
   assert.equal(soundingNotes[3].note, "5");
 });
+
+test("Delete 键：向右删除光标后一个符号，末尾不越界，可撤销", async () => {
+  const { EditorState } = await import("../app/editor-state.ts");
+  const st = new EditorState(compileScore("1  2  3"));
+  // 光标在开头 (index 0)
+  assert.equal(st.itemIndex, 0);
+  // 模拟 Delete 逻辑：move(1) + backspace()
+  st.move(1);
+  st.backspace();
+  const notes = st.score.paragraphs[0].notations.map(n => n.note);
+  assert.deepEqual(notes, ["2", "3"]);
+  st.undo();
+  assert.deepEqual(st.score.paragraphs[0].notations.map(n => n.note), ["1", "2", "3"]);
+});

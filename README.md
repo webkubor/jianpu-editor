@@ -28,6 +28,7 @@
 | `⇧Enter` / `⌘⇧Enter` | 拆段 / 整段复制到下方（旋律重复高频操作） |
 | `⌘D` | 复制当前小节（歌词随行，可撤销） |
 | `⌘⌫` | 删除当前整段（最后一段保留只清内容） |
+| `Backspace` / `Delete` | 向左退格删除 / 向右删除音符 |
 | `⌘Z` / `⌘⇧Z` | 撤销 / 重做 |
 | `Enter` | 播放 / 停止（Shift+Enter 从光标处播；播放中可继续编辑，高亮照常推进） |
 
@@ -60,7 +61,7 @@
 ```bash
 npm install
 npm run dev      # http://localhost:5196
-npm test         # node --test，核心层 62 个用例
+npm test         # node --test，核心层 63 个用例
 npm run build    # tsc + vite 生产构建
 ```
 
