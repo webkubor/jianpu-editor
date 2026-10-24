@@ -85,13 +85,18 @@ function refresh(): void {
 }
 state.subscribe(refresh);
 
-/** 画布点击直接选中符号，跨段与自动换行使用相同定位信息。 */
+/** 画布点击直接选中符号；若点击的是空白区域且当前段为空，自动聚焦段首 */
 canvas.addEventListener("click", (event) => {
   const glyph = (event.target as Element).closest<SVGGElement>(".glyph");
   const row = glyph?.closest<SVGGElement>(".paragraph");
-  if (!glyph || !row) return;
-  state.selectItem(Number(row.dataset.para), Number(glyph.dataset.idx));
-  previewCurrentTone();
+  if (glyph && row) {
+    state.selectItem(Number(row.dataset.para), Number(glyph.dataset.idx));
+    previewCurrentTone();
+  } else if (!glyph) {
+    // 点击空白处，自动将光标重置到最后一段末尾，方便直接打字续写
+    state.moveParagraph(state.score.paragraphs.length - 1 - state.paragraphIndex);
+    state.moveToBoundary(true);
+  }
   (document.activeElement as HTMLElement | null)?.blur();
 });
 
