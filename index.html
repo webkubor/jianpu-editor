@@ -66,6 +66,8 @@
     .score-svg .glyph.playing { fill: var(--accent); }
     .score-svg .lyric { fill: #555; }
     .score-svg .lyric.lyric-playing { fill: var(--accent); font-weight: 700; }
+    .score-svg .editor-caret { animation: caret-blink 1s steps(2, start) infinite; pointer-events: none; }
+    @keyframes caret-blink { to { visibility: hidden; } }
     #play.btn-playing { background: #fee2e2; border-color: #f87171; color: #b91c1c; font-weight: 600; }
     #metronome.active { background: #e0f2fe; border-color: #38bdf8; color: #0369a1; font-weight: 600; }
     aside { display: flex; flex-direction: column; gap: 12px; }

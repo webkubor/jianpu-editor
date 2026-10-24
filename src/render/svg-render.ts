@@ -197,13 +197,22 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
 }
 
 /** 渲染整份乐谱到一个容器 */
-export function renderScore(container: HTMLElement, score: Score, selectedKey: string | null): void {
+export function renderScore(
+  container: HTMLElement,
+  score: Score,
+  selectedKey: string | null,
+  cursorPos: { paragraph: number; itemIndex: number } | null = null
+): void {
   container.innerHTML = "";
-  container.appendChild(renderScoreSvg(score, selectedKey));
+  container.appendChild(renderScoreSvg(score, selectedKey, cursorPos));
 }
 
 /** 渲染为独立 SVG 元素（画布与打印导出共用） */
-export function renderScoreSvg(score: Score, selectedKey: string | null = null): SVGSVGElement {
+export function renderScoreSvg(
+  score: Score,
+  selectedKey: string | null = null,
+  cursorPos: { paragraph: number; itemIndex: number } | null = null
+): SVGSVGElement {
   const pageWidth = 860;
   const svg = el("svg", {
     viewBox: `0 0 ${pageWidth} 400`,
@@ -254,6 +263,13 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
       const flex = shouldJustify ? (contentWidth - totalWidth) / (rowGlyphs.length - 1) : 0;
       let x = LAYOUT.pageMarginX;
       const row = el("g", { class: "paragraph", "data-para": String(paraNo), transform: `translate(0, ${yOffset})` });
+      // 如果光标在行首 (itemIndex=0)
+      if (cursorPos && cursorPos.paragraph === paraNo && cursorPos.itemIndex === 0 && rIdx === 0) {
+        row.appendChild(el("line", {
+          x1: LAYOUT.pageMarginX - 2, y1: -20, x2: LAYOUT.pageMarginX - 2, y2: 20,
+          stroke: "var(--accent, #ea580c)", "stroke-width": 2, class: "editor-caret",
+        }));
+      }
       // 发声符号序号（歌词对齐用）——段内全序，跨视觉行连续
       let soundingIdx = para.lyrics.length ? countSoundingBefore(score, para, rowGlyphs[0]?.n.key ?? "") : 0;
       const tieFrom = new Map<string, Notation>();
@@ -284,6 +300,16 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
           glyph.setAttribute("data-sounding", String(countSoundingIdx(para, g.n)));
         }
         row.appendChild(glyph);
+
+        // 编辑光标闪烁光标竖线 (Caret indicator)
+        if (cursorPos && cursorPos.paragraph === paraNo && cursorPos.itemIndex === (orderIdx.get(g.n) ?? -1) + 1) {
+          const caretX = cx + g.width / 2;
+          row.appendChild(el("line", {
+            x1: caretX, y1: -20, x2: caretX, y2: 20,
+            stroke: "var(--accent, #ea580c)", "stroke-width": 2, class: "editor-caret",
+          }));
+        }
+
         // 歌词：仅发声符号（音符/延音线）有词位；data-sounding 记发声序号（卡拉OK 高亮用）
         if (isPitchable(g.n) || g.n.note === EXTEND) {
           soundingIdx += 1;

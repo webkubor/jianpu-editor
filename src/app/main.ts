@@ -58,7 +58,7 @@ function selectedKey(): string | null {
 
 /** 渲染 + 自动保存 + 拍数校验 */
 function refresh(): void {
-  renderScore(canvas, state.score, selectedKey());
+  renderScore(canvas, state.score, selectedKey(), { paragraph: state.paragraphIndex, itemIndex: state.itemIndex });
   autosave(state.score);
   (document.getElementById("undo") as HTMLButtonElement).disabled = !state.canUndo;
   (document.getElementById("redo") as HTMLButtonElement).disabled = !state.canRedo;
