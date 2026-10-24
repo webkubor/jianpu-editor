@@ -423,6 +423,20 @@ document.getElementById("export-dsl")?.addEventListener("click", () => {
   dslArea.value = toDsl(state.score);
 });
 
+document.getElementById("new-score")?.addEventListener("click", () => {
+  const confirmed = !state.score.paragraphs.some(p => p.notations.length > 0) || window.confirm("确定新建空白乐谱吗？当前未保存的修改将被清空。");
+  if (confirmed) {
+    state.replaceScore(createScore({
+      title: "未命名",
+      tone: "C",
+      beat: [4, 4],
+      speed: 72,
+      paragraphs: [],
+    }));
+    statusEl.textContent = "已新建空白乐谱";
+  }
+});
+
 document.getElementById("save")?.addEventListener("click", () => {
   downloadScore(state.score);
 });
