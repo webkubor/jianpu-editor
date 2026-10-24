@@ -244,11 +244,14 @@ export function renderScoreSvg(score: Score, selectedKey: string | null = null):
       (g) => g.n.note === BAR || g.n.note === DOUBLE_BAR || g.n.note === REPEAT_START || g.n.note === REPEAT_END);
 
     const paraNo = score.paragraphs.indexOf(para);
-    for (const rowGlyphs of rows) {
+    for (let rIdx = 0; rIdx < rows.length; rIdx++) {
+      const rowGlyphs = rows[rIdx];
+      const isLastRowOfPara = rIdx === rows.length - 1;
       const totalWidth = rowGlyphs.reduce((s, g) => s + g.width, 0);
-      const flex = para.alignJustify && rowGlyphs.length > 1 && totalWidth < contentWidth
-        ? (contentWidth - totalWidth) / (rowGlyphs.length - 1)
-        : 0;
+      // 排版美学：如果最后一行内容较少（不足满行宽度的 65%），则不对其强行两端拉伸，避免两三个音符被扯到两端
+      const shouldJustify = para.alignJustify && rowGlyphs.length > 1 && totalWidth < contentWidth &&
+        (!isLastRowOfPara || totalWidth >= contentWidth * 0.65);
+      const flex = shouldJustify ? (contentWidth - totalWidth) / (rowGlyphs.length - 1) : 0;
       let x = LAYOUT.pageMarginX;
       const row = el("g", { class: "paragraph", "data-para": String(paraNo), transform: `translate(0, ${yOffset})` });
       // 发声符号序号（歌词对齐用）——段内全序，跨视觉行连续
