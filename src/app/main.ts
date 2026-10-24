@@ -67,7 +67,8 @@ function refresh(): void {
   toneSelect.value = state.score.tone;
   if (document.activeElement !== speedInput) speedInput.value = String(state.score.speed);
   if (document.activeElement !== authorsInput) authorsInput.value = state.score.authors.join("  ");
-  if (!dslDirty) dslArea.value = toDsl(state.score);  const issues = validateScore(state.score);
+  if (!dslDirty) dslArea.value = toDsl(state.score);
+  const issues = validateScore(state.score);
   const warn = issues.length
     ? ` · ⚠ ${issues.length} 个小节拍数异常（${issues.slice(0, 2).map((i) => `段${i.paragraph + 1}小节${i.bar + 1}:${i.beats}/${i.expected}拍`).join("、")}）`
     : "";
