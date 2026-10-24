@@ -48,6 +48,33 @@ test("timeBefore：光标处播放起点=光标前总时值，跨段累计", () 
   assert.ok(Math.abs(timeBefore(score, 1, 0) - 2 * secBeat) < 1e-9);
 });
 
+test("cycleTopDecorator：顶部演奏记号循环切换(▾顿音->𝄐延长->⌒保持->无)，休止符不参与，DSL语法往返", async () => {
+  const { compileScore } = await import("./dsl.ts");
+  const { toDsl } = await import("./dsl-export.ts");
+  const st = new EditorState(compileScore("5  0"));
+  st.move(1); // 选中 5
+  st.cycleTopDecorator();
+  assert.deepEqual(st.currentItem?.topDecorators, ["▾"]);
+  st.cycleTopDecorator();
+  assert.deepEqual(st.currentItem?.topDecorators, ["𝄐"]);
+  st.cycleTopDecorator();
+  assert.deepEqual(st.currentItem?.topDecorators, ["⌒"]);
+  st.cycleTopDecorator();
+  assert.deepEqual(st.currentItem?.topDecorators, []);
+  st.undo();
+  assert.deepEqual(st.currentItem?.topDecorators, ["⌒"]);
+
+  // DSL 编译 5{▾} 与导出
+  const dslScore = compileScore("5{▾}  3{𝄐}");
+  assert.deepEqual(dslScore.paragraphs[0].notations[0].topDecorators, ["▾"]);
+  assert.deepEqual(dslScore.paragraphs[0].notations[1].topDecorators, ["𝄐"]);
+  const exported = toDsl(dslScore);
+  assert.ok(exported.includes("5{▾}:1/0"));
+  const round = compileScore(exported);
+  assert.deepEqual(round.paragraphs[0].notations[0].topDecorators, ["▾"]);
+  assert.deepEqual(round.paragraphs[0].notations[1].topDecorators, ["𝄐"]);
+});
+
 test("反复记号：||: 与 :|| 词法解析、排版渲染、校验分小节及 DSL 往返保持", async () => {
   const { compileScore } = await import("./dsl.ts");
   const { toDsl } = await import("./dsl-export.ts");

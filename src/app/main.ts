@@ -204,6 +204,13 @@ window.addEventListener("keydown", (e) => {
       state.toggleDotted();
       e.preventDefault();
       break;
+    case ";":
+    case "；":
+      if (!state.lyricMode) {
+        state.cycleTopDecorator();
+        e.preventDefault();
+      }
+      break;
     case "#":
     case "b":
     case "B":

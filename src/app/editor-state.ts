@@ -388,6 +388,33 @@ export class EditorState {
     this.replaceParagraphNotations(items);
   }
 
+  /** 切换顶部常用演奏法记号（顿音 ▾ -> 延长 𝄐 -> 保持音 ⌒ -> 无 循环）。 */
+  cycleTopDecorator(): void {
+    const prev = this.currentItem;
+    if (!prev || !isPitchable(prev)) {
+      this.lastNotice = "演奏记号：只能应用到音符（1–7）";
+      this.emit();
+      return;
+    }
+    this.snapshot();
+    const para = this.paragraph;
+    const idx = this.itemIdx - 1;
+    const items = [...para.notations];
+    const updated = cloneNotation(prev);
+    const curr = updated.topDecorators[0];
+    if (!curr) {
+      updated.topDecorators = ["▾"];
+    } else if (curr === "▾") {
+      updated.topDecorators = ["𝄐"];
+    } else if (curr === "𝄐") {
+      updated.topDecorators = ["⌒"];
+    } else {
+      updated.topDecorators = [];
+    }
+    items[idx] = updated;
+    this.replaceParagraphNotations(items);
+  }
+
   /** 修改光标左边音符或休止符的附点开关。 */
   toggleDotted(): void {
     const prev = this.currentItem;

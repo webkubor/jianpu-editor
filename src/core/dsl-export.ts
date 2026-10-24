@@ -20,7 +20,8 @@ export function toDsl(score: Score): string {
         continue;
       }
       let token = n.note === "─" ? "-" : n.prefixAccidentals.join("").replaceAll("♯", "#").replaceAll("♭", "b") + n.note
-        + "^".repeat(Math.max(0, n.octave)) + ",".repeat(Math.max(0, -n.octave)) + (n.dotted ? "." : "");
+        + "^".repeat(Math.max(0, n.octave)) + ",".repeat(Math.max(0, -n.octave)) + (n.dotted ? "." : "")
+        + (n.topDecorators && n.topDecorators.length ? `{${n.topDecorators.join(",")}}` : "");
       const beats = n.beatFrac ?? 1 / 2 ** Math.min(3, n.underline);
       token += `:${fmtBeats(beats)}/${n.underline}`;
       if (n.tieTo && !tieDone.has(n.key)) {

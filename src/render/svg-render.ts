@@ -167,6 +167,20 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
   for (let i = 0; i < Math.abs(n.octave); i += 1) {
     group.appendChild(el("circle", { cx: 0, cy: y0 + dir * LAYOUT.dotStep * i, r: LAYOUT.dotR, fill: "currentColor" }));
   }
+  // 顶部装饰记号（自由文本或常见音符表情记号：如 ▾ 顿音/跳音、⌒ 保持音、𝄐 延长记号等）
+  if (n.topDecorators && n.topDecorators.length > 0) {
+    const octOffset = n.octave > 0 ? LAYOUT.dotAboveY - LAYOUT.dotStep * (n.octave - 1) - 10 : -16;
+    n.topDecorators.forEach((dec, idx) => {
+      group.appendChild(el("text", {
+        x: 0,
+        y: octOffset - idx * 12,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 13,
+        class: "top-decorator",
+      }, dec));
+    });
+  }
   // 单音符独立减时线（连排的由段落层绘制）
   if (n.underline > 0) {
     for (let i = 0; i < n.underline; i += 1) {

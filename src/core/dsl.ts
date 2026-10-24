@@ -19,7 +19,7 @@ import type { NoteDigit, Notation, Paragraph, Score } from "./model.ts";
 
 /** 词法单元 */
 export type Token =
-  | { t: "note"; digit: string; octave: number; dotted: boolean; accidentals: ("♯" | "♭")[] }
+  | { t: "note"; digit: string; octave: number; dotted: boolean; accidentals: ("♯" | "♭")[]; decorators: string[] }
   | { t: "duration"; beats: number; underline: number }
   | { t: "extend" }
   | { t: "bar"; double?: boolean; repeat?: "start" | "end" }
@@ -154,7 +154,17 @@ export function tokenizeLine(line: string): LexResult {
         dotted = true;
         i += 1;
       }
-      tokens.push({ t: "note", digit, octave, dotted, accidentals });
+      // 顶部表情/装饰记号：如 5{▾} 或 5{fermata} 或 5{⌒}
+      const decorators: string[] = [];
+      if (line[i] === "{") {
+        const close = line.indexOf("}", i);
+        if (close !== -1) {
+          const raw = line.slice(i + 1, close).trim();
+          if (raw) decorators.push(raw);
+          i = close + 1;
+        }
+      }
+      tokens.push({ t: "note", digit, octave, dotted, accidentals, decorators });
       continue;
     }
     throw new SyntaxError(`位置 ${i}：无法识别的字符 "${c}"`);
@@ -211,6 +221,7 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
         octave: tk.octave,
         dotted: tk.dotted,
         prefixAccidentals: tk.accidentals,
+        topDecorators: tk.decorators,
       });
       if (pendingTieFrom) {
         pendingTieFrom.tieTo = n.key;

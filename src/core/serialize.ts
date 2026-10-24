@@ -36,6 +36,8 @@ export function deserializeScore(json: string): Score | null {
         if (n.beatFrac !== undefined && !(typeof n.beatFrac === "number" && Number.isFinite(n.beatFrac) && n.beatFrac > 0)) return null;
         if (n.prefixAccidentals !== undefined && (!Array.isArray(n.prefixAccidentals) ||
           !n.prefixAccidentals.every((value: unknown) => value === "♯" || value === "♭"))) return null;
+        if (n.topDecorators !== undefined && (!Array.isArray(n.topDecorators) ||
+          !n.topDecorators.every((value: unknown) => typeof value === "string"))) return null;
       }
     }
     const score: Score = {
