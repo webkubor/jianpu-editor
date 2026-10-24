@@ -141,7 +141,13 @@ export function compileEvents(score: Score): PlayEvent[] {
           beats += noteBeats(next);
           cursor = next;
         }
-        events.push({ start: t, duration: beats * secPerBeat * 0.92, midi, index: idx, paragraph: paraIdx });
+        // 演奏法修饰时值系数：顿音/跳音(▾)短促发声(约40%)；保持音(⌒)饱满发声(约98%)；延长音(𝄐)自然延续
+        let durFactor = 0.92;
+        if (n.topDecorators && n.topDecorators.length > 0) {
+          if (n.topDecorators.includes("▾")) durFactor = 0.45;
+          else if (n.topDecorators.includes("⌒")) durFactor = 0.98;
+        }
+        events.push({ start: t, duration: beats * secPerBeat * durFactor, midi, index: idx, paragraph: paraIdx });
         t += beats * secPerBeat;
         // 被合并的连音后继不发新音，但保留光标经过的位置
         for (const used of consumed) {

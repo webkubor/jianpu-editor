@@ -73,6 +73,14 @@ test("cycleTopDecorator：顶部演奏记号循环切换(▾顿音->𝄐延长->
   const round = compileScore(exported);
   assert.deepEqual(round.paragraphs[0].notations[0].topDecorators, ["▾"]);
   assert.deepEqual(round.paragraphs[0].notations[1].topDecorators, ["𝄐"]);
+  // 顿音与保持音发声时长系数测试
+  const { compileEvents } = await import("./player.ts");
+  const evNormal = compileEvents(compileScore("5", { speed: 60 }));
+  const evStaccato = compileEvents(compileScore("5{▾}", { speed: 60 }));
+  const evTenuto = compileEvents(compileScore("5{⌒}", { speed: 60 }));
+  assert.ok(Math.abs(evNormal[0].duration - 0.92) < 1e-6);
+  assert.ok(Math.abs(evStaccato[0].duration - 0.45) < 1e-6);
+  assert.ok(Math.abs(evTenuto[0].duration - 0.98) < 1e-6);
 });
 
 test("反复记号：||: 与 :|| 词法解析、排版渲染、校验分小节及 DSL 往返保持", async () => {
