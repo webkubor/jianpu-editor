@@ -263,6 +263,18 @@ window.addEventListener("keydown", (e) => {
         e.preventDefault();
       }
       break;
+    case "?":
+    case "？": {
+      if (!state.lyricMode) {
+        const dialog = document.getElementById("help-dialog") as HTMLDialogElement | null;
+        if (dialog) {
+          if (dialog.open) dialog.close();
+          else dialog.showModal();
+          e.preventDefault();
+        }
+      }
+      break;
+    }
     case "l":
     case "L": {
       if (e.shiftKey) {
@@ -651,5 +663,13 @@ if (exampleSelect) {
     }
   });
 }
+
+const helpDialog = document.getElementById("help-dialog") as HTMLDialogElement | null;
+document.getElementById("open-help")?.addEventListener("click", () => {
+  helpDialog?.showModal();
+});
+document.getElementById("close-help")?.addEventListener("click", () => {
+  helpDialog?.close();
+});
 
 refresh();
