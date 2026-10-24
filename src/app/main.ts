@@ -65,7 +65,7 @@ function refresh(): void {
   document.title = `${state.score.title} · 简谱编辑器`;
   beatSelect.value = `${state.score.beat[0]}/${state.score.beat[1]}`;
   toneSelect.value = state.score.tone;
-  speedInput.value = String(state.score.speed);
+  if (document.activeElement !== speedInput) speedInput.value = String(state.score.speed);
   if (document.activeElement !== authorsInput) authorsInput.value = state.score.authors.join("  ");
   if (!dslDirty) dslArea.value = toDsl(state.score);  const issues = validateScore(state.score);
   const warn = issues.length
@@ -384,6 +384,10 @@ toneSelect.addEventListener("change", () => {
   state.transposeTo(toneSelect.value);
 });
 
+speedInput.addEventListener("input", () => {
+  const val = Number(speedInput.value);
+  if (val >= 20 && val <= 240) state.setSpeed(val);
+});
 speedInput.addEventListener("change", () => {
   state.setSpeed(Number(speedInput.value));
 });
