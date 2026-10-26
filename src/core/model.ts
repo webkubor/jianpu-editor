@@ -34,7 +34,7 @@ export interface GraceNote {
 export interface WindTechnique {
   /** 颤音 (tr) */
   trill?: boolean;
-  /** 波音 (mordent, 如 ~ 上波音) */
+  /** 波音 (mordent, 如 ∿ 或 w 上波音) */
   mordent?: boolean;
   /** 上滑音 (↗ 或 ⤻) */
   slideUp?: boolean;
@@ -48,8 +48,12 @@ export interface WindTechnique {
   vibrato?: boolean;
   /** 花舌 (flutter tongue, 标注 * 或 fl) */
   flutter?: boolean;
-  /** 叠音 (上叠音) */
+  /** 叠音 (上叠音，标注 叉号 ⚹ 或叠) */
   appoggiatura?: boolean;
+  /** 换气记号 (v) */
+  breath?: boolean;
+  /** 重音记号 (>) */
+  accent?: boolean;
 }
 
 /** 一个记谱符号：音符 / 休止符 / 小节线 / 延音线 */
@@ -82,10 +86,26 @@ export interface Notation {
   volta?: string;
 }
 
+/** 跨音对象使用稳定音符键，与音值延音 tie 分开保存。 */
+export interface MusicSpan {
+  kind: "slur" | "crescendo" | "diminuendo" | "trill" | "tuplet";
+  startKey: string;
+  endKey: string;
+  label?: string;
+}
+
 /** 段落（一行乐谱） */
 export interface Paragraph {
   key: string;
   notations: Notation[];
+  /** 段落所属乐段标题 */
+  heading?: string;
+  /** 本段拍号；缺省沿用全谱拍号 */
+  meter?: [number, number];
+  /** 显式散板段落，不参与小节拍数校验 */
+  freeTime?: boolean;
+  /** 乐句弧、力度发夹、持续颤音与连音组 */
+  spans?: MusicSpan[];
   /** 两端对齐撑满页宽 */
   alignJustify: boolean;
   /** 段落左侧歌词（简谱常用上方/下方歌词行，此处按下标对应） */

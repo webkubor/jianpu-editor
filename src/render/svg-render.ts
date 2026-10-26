@@ -10,6 +10,7 @@
 import { BAR, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, isPitchable } from "../core/model.ts";
 import type { Notation, Paragraph, Score } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
+import { renderMusicSpans } from "./music-spans.ts";
 import { A4_PAGE, paginateScore, type ScorePage } from "./pagination.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
@@ -252,9 +253,33 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         y: techTopY,
         "text-anchor": "middle",
         "dominant-baseline": "middle",
-        "font-size": 14,
+        "font-size": 13,
+        "font-family": "Times New Roman, serif",
         class: "wind-tech-mordent",
-      }, "∿"));
+      }, "w"));
+      techTopY -= 11;
+    }
+    if (tech.appoggiatura) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 13,
+        class: "wind-tech-appoggiatura",
+      }, "⚹"));
+      techTopY -= 11;
+    }
+    if (tech.accent) {
+      group.appendChild(el("text", {
+        x: mainX,
+        y: techTopY,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 14,
+        "font-weight": 700,
+        class: "wind-tech-accent",
+      }, ">"));
       techTopY -= 11;
     }
     if (tech.tonguing) {
@@ -268,6 +293,17 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         class: "wind-tech-tonguing",
       }, tech.tonguing));
       techTopY -= 10;
+    }
+    if (tech.breath) {
+      group.appendChild(el("text", {
+        x: mainX + g.core / 2 + 6,
+        y: -16,
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "font-size": 12,
+        "font-style": "italic",
+        class: "wind-tech-breath",
+      }, "v"));
     }
     if (tech.slideUp) {
       group.appendChild(el("text", {
@@ -426,7 +462,17 @@ export function renderPageSvg(
     const flex = shouldJustify ? (contentWidth - totalWidth) / (rowGlyphs.length - 1) : 0;
 
     let x = A4_PAGE.marginLeft;
-    const row = el("g", { class: "paragraph", "data-para": String(r.paraIndex), transform: `translate(0, ${yOffset})` });
+    const sectionLabel = r.rowInPara === 0
+      ? [para.heading, para.freeTime ? "散板" : para.meter?.join("/")].filter(Boolean).join(" · ")
+      : "";
+    const headingSpace = sectionLabel ? 30 : 0;
+    if (sectionLabel) {
+      svg.appendChild(el("text", {
+        x: A4_PAGE.marginLeft, y: yOffset - 22,
+        "font-size": 15, "font-weight": 600, class: "section-heading",
+      }, sectionLabel));
+    }
+    const row = el("g", { class: "paragraph", "data-para": String(r.paraIndex), transform: `translate(0, ${yOffset + headingSpace})` });
 
     if (cursorPos && cursorPos.paragraph === r.paraIndex && cursorPos.itemIndex === 0 && r.rowInPara === 0) {
       row.appendChild(el("line", {
@@ -526,6 +572,18 @@ export function renderPageSvg(
       }
     }
 
+    if (para.spans?.length) {
+      const positions = new Map<string, { x: number; top: number; bottom: number }>();
+      rowGlyphs.forEach((g, index) => {
+        const techCount = Object.values(g.n.technique ?? {}).filter(Boolean).length + g.n.topDecorators.length;
+        positions.set(g.n.key, {
+          x: A4_PAGE.marginLeft + rowCenterX(rowGlyphs.map(item => item.width), index, flex),
+          top: Math.min(-24, -22 - Math.max(0, g.n.octave) * 6 - techCount * 14),
+          bottom: Math.max(28, 22 + g.n.underline * 5 + Math.max(0, -g.n.octave) * 6, para.lyrics.length ? 44 : 0),
+        });
+      });
+      renderMusicSpans(row, para.spans, positions);
+    }
     svg.appendChild(row);
     yOffset += r.rowHeight;
   }

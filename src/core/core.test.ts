@@ -128,10 +128,11 @@ test("playTone 与 midiOf：音高计算精确，全谱播放时不抢占", asyn
   p.playTone(60);
 });
 
-test("经典曲库示例：竹笛名曲（姑苏行/牧民新歌/扬鞭催马/妆台秋思/幽兰逢春）与民歌声乐全量加载且通过节拍校验", async () => {
+test("曲库示例均通过拍数校验；未核对的牧民新歌从正式曲库撤下", async () => {
   const { EXAMPLES } = await import("./examples.ts");
   const { validateScore } = await import("./validate.ts");
-  assert.equal(EXAMPLES.length, 8);
+  assert.equal(EXAMPLES.length, 7);
+  assert.ok(!EXAMPLES.some(ex => ex.id === "flute-mumin"));
   for (const ex of EXAMPLES) {
     assert.ok(ex.score.paragraphs.length > 0);
     assert.ok(ex.score.title.length > 0);

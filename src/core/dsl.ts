@@ -27,16 +27,7 @@ export type Token =
       accidentals: ("♯" | "♭")[];
       decorators: string[];
       graceNotes?: { note: string; octave: number }[];
-      technique?: {
-        trill?: boolean;
-        mordent?: boolean;
-        slideUp?: boolean;
-        slideDown?: boolean;
-        tonguing?: "T" | "K" | "TK" | "TKT";
-        glissando?: boolean;
-        vibrato?: boolean;
-        flutter?: boolean;
-      };
+      technique?: WindTechnique;
     }
   | { t: "duration"; beats: number; underline: number }
   | { t: "extend" }
@@ -61,6 +52,7 @@ export function tokenizeLine(line: string): LexResult {
   let i = 0;
   let spaceRun = 0;
   let pendingOctaveUp = false;
+  let pendingGraceNotes: { note: string; octave: number }[] | undefined;
   // 中文输入法容错：全角数字/符号归一化为半角（１→1、｜→|、～→~、＃→#、　→空格等）
   const normalized = line
     .replace(/　/g, " ")
@@ -98,6 +90,14 @@ export function tokenizeLine(line: string): LexResult {
     if (line.slice(i, i + 3) === "||:" || line.slice(i, i + 2) === "‖:") {
       tokens.push({ t: "bar", repeat: "start" });
       i += line.slice(i, i + 3) === "||:" ? 3 : 2;
+      continue;
+    }
+    // 显式减时线下划线后缀：/_ (1层八分) /__ (2层十六分) /___ (3层三十二分)
+    if (c === "/" && /^\/_+/.test(line.slice(i))) {
+      const match = /^\/(_+)/.exec(line.slice(i))!;
+      const lines = match[1].length;
+      tokens.push({ t: "duration", beats: 1 / (2 ** lines), underline: lines });
+      i += match[0].length;
       continue;
     }
     // 显式时值后缀 :基础拍数/减时线层数，供无损文本导出。
@@ -155,7 +155,7 @@ export function tokenizeLine(line: string): LexResult {
       continue;
     }
     // 倚音 / 装饰小音符：如 (5)6 或 (^1)7 或 (3,5)6
-    let graceNotes: { note: string; octave: number }[] | undefined;
+    let graceNotes = pendingGraceNotes;
     if (c === "(") {
       const close = line.indexOf(")", i);
       if (close > i + 1) {
@@ -190,6 +190,7 @@ export function tokenizeLine(line: string): LexResult {
 
     // 前缀 ^：高八度记号（^1 = 高音 do），并到下一个音符上
     if (c === "^") {
+      pendingGraceNotes = graceNotes;
       pendingOctaveUp = true;
       i += 1;
       continue;
@@ -226,7 +227,10 @@ export function tokenizeLine(line: string): LexResult {
           const items = raw.split(/[,，\s]+/).filter(Boolean);
           for (const it of items) {
             if (it === "tr" || it === "trill") technique.trill = true;
-            else if (it === "mordent" || it === "波音") technique.mordent = true;
+            else if (it === "mordent" || it === "波音" || it === "w") technique.mordent = true;
+            else if (it === "die" || it === "叠" || it === "app") technique.appoggiatura = true;
+            else if (it === "accent" || it === ">") technique.accent = true;
+            else if (it === "v" || it === "breath" || it === "气") technique.breath = true;
             else if (it === "up" || it === "↗" || it === "上滑") technique.slideUp = true;
             else if (it === "down" || it === "↘" || it === "下滑") technique.slideDown = true;
             else if (it === "T" || it === "K" || it === "TK" || it === "TKT") technique.tonguing = it as any;
@@ -248,6 +252,7 @@ export function tokenizeLine(line: string): LexResult {
         graceNotes,
         technique: Object.keys(technique).length ? technique : undefined,
       });
+      pendingGraceNotes = undefined;
       continue;
     }
     throw new SyntaxError(`位置 ${i}：无法识别的字符 "${c}"`);
@@ -385,9 +390,38 @@ export function compileLine(line: string): Paragraph {
 export function compileScore(dsl: string, base?: Partial<Score>): Score {
   const score = createScore(base);
   const paras: Paragraph[] = [];
+  let pendingSection: Partial<Pick<Paragraph, "heading" | "meter" | "freeTime">> | undefined;
   for (const raw of dsl.split(/\n/)) {
     const line = raw.trim();
     if (line === "") continue;
+    if (line.startsWith("@spans ")) {
+      const target = paras.at(-1);
+      const spans: unknown = JSON.parse(line.slice(7));
+      if (!target || !Array.isArray(spans)) throw new SyntaxError("跨度须在音符行后指定数组");
+      target.spans = spans.map(span => {
+        if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
+          !Number.isInteger(span.start) || !Number.isInteger(span.end) ||
+          !target.notations[span.start] || !target.notations[span.end] ||
+          (span.label !== undefined && typeof span.label !== "string")) throw new SyntaxError("跨度端点或类型有误");
+        return { kind: span.kind, startKey: target.notations[span.start].key,
+          endKey: target.notations[span.end].key, ...(span.label !== undefined ? { label: span.label } : {}) };
+      });
+      continue;
+    }
+    if (line.startsWith("@section ")) {
+      const metadata: unknown = JSON.parse(line.slice(9));
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) throw new SyntaxError("段落元数据须为对象");
+      const m = metadata as Record<string, unknown>;
+      if (m.heading !== undefined && typeof m.heading !== "string") throw new SyntaxError("段落标题须为文本");
+      if (m.freeTime !== undefined && typeof m.freeTime !== "boolean") throw new SyntaxError("散板标记须为布尔值");
+      if (m.meter !== undefined && (!Array.isArray(m.meter) || m.meter.length !== 2 || !m.meter.every(v => Number.isSafeInteger(v) && v > 0))) throw new SyntaxError("段落拍号须为两个正整数");
+      pendingSection = {
+        ...(m.heading !== undefined ? { heading: m.heading as string } : {}),
+        ...(m.meter !== undefined ? { meter: m.meter as [number, number] } : {}),
+        ...(m.freeTime !== undefined ? { freeTime: m.freeTime as boolean } : {}),
+      };
+      continue;
+    }
     if (/^\[词[:：]/.test(line)) {
       // 词行：并入上一个已有段落（没有则忽略）
       const target = paras[paras.length - 1];
@@ -403,7 +437,10 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
       }
       continue;
     }
-    paras.push(compileLine(line));
+    const paragraph = compileLine(line);
+    if (pendingSection) Object.assign(paragraph, pendingSection);
+    pendingSection = undefined;
+    paras.push(paragraph);
   }
   score.paragraphs = paras;
   return score;

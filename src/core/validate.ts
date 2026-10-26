@@ -40,13 +40,13 @@ export interface BeatIssue {
   expected: number;
 }
 
-/** 全谱校验：期望拍数 = 拍号分子/分母折算（x/4 直接分子拍；x/8 每拍=半拍…V1 只支持 /4 与 /8） */
+/** 全谱校验：段落拍号优先，按四分音符折算时值；仅跳过显式散板段落 */
 export function validateScore(score: Score): BeatIssue[] {
-  const [num, den] = score.beat;
-  const unit = den === 8 ? 0.5 : 1;
-  const expected = num * unit;
   const issues: BeatIssue[] = [];
   score.paragraphs.forEach((para, p) => {
+    if (para.freeTime === true) return;
+    const [num, den] = para.meter ?? score.beat;
+    const expected = num * 4 / den;
     measureBeats(para).forEach((bar, b) => {
       // 忽略拍数为 0 的空小节（纯小节线连打）
       if (bar.beats > 0 && Math.abs(bar.beats - expected) > 1e-6) {

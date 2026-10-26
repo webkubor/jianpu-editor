@@ -18,7 +18,13 @@ import { renderScoreToWav } from "../core/wav-export.ts";
 
 /** 从 localStorage 恢复或用默认谱 */
 function initialScore() {
-  return loadAutosave() ?? createScore({
+  const saved = loadAutosave();
+  // 旧版错误示例曾自动保存到浏览器；不再把它留在正式谱库页面。
+  if (saved && (/^牧民新歌\s*\(完整竹笛独奏全曲\)$/.test(saved.title) ||
+    saved.title === "牧民新歌（旧示例有误，待逐页重录）")) {
+    return { ...saved, title: "牧民新歌（旧示例仅供核对）" };
+  }
+  return saved ?? createScore({
     title: "未命名",
     tone: "C",
     speed: 72,

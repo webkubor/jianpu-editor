@@ -74,7 +74,9 @@ export function paginateScore<G extends { n: Notation; width: number; core: numb
     const hasLyrics = para.lyrics.length > 0;
     splitRows.forEach((rowGlyphs, rowInPara) => {
       const isLastRowOfPara = rowInPara === splitRows.length - 1;
-      const rowHeight = estimateRowHeight(rowGlyphs, hasLyrics);
+      const rowHeight = estimateRowHeight(rowGlyphs, hasLyrics) +
+        (rowInPara === 0 && (para.heading || para.meter || para.freeTime) ? 30 : 0) +
+        Math.min(120, (para.spans?.length ?? 0) * 18);
       allRows.push({
         paraIndex,
         rowInPara,

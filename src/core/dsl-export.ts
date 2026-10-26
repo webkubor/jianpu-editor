@@ -11,6 +11,9 @@ import type { Score } from "./model.ts";
 export function toDsl(score: Score): string {
   const lines: string[] = [];
   for (const para of score.paragraphs) {
+    if (para.heading !== undefined || para.meter !== undefined || para.freeTime !== undefined) {
+      lines.push(`@section ${JSON.stringify({ heading: para.heading, meter: para.meter, freeTime: para.freeTime })}`);
+    }
     const tokens: string[] = [];
     const words: string[] = [];
     const tieDone = new Set<string>();
@@ -28,7 +31,10 @@ export function toDsl(score: Score): string {
       let techItems: string[] = [];
       if (n.technique) {
         if (n.technique.trill) techItems.push("tr");
-        if (n.technique.mordent) techItems.push("mordent");
+        if (n.technique.mordent) techItems.push("w");
+        if (n.technique.appoggiatura) techItems.push("die");
+        if (n.technique.accent) techItems.push(">");
+        if (n.technique.breath) techItems.push("v");
         if (n.technique.slideUp) techItems.push("up");
         if (n.technique.slideDown) techItems.push("down");
         if (n.technique.tonguing) techItems.push(n.technique.tonguing);
@@ -50,6 +56,12 @@ export function toDsl(score: Score): string {
       if (n.note !== "0") words.push(para.lyrics[words.length] ?? "");
     }
     lines.push(tokens.join("  "));
+    if (para.spans?.length) {
+      lines.push(`@spans ${JSON.stringify(para.spans.map(span => ({
+        kind: span.kind, start: para.notations.findIndex(n => n.key === span.startKey),
+        end: para.notations.findIndex(n => n.key === span.endKey), label: span.label,
+      })))}`);
+    }
     if (words.some(Boolean)) lines.push(`[词:${words.map((w) => w || "-").join(" ")}]`);
   }
   return lines.join("\n");

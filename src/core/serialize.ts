@@ -25,6 +25,20 @@ export function deserializeScore(json: string): Score | null {
     const keys = new Set<string>();
     for (const paragraph of d.paragraphs) {
       if (!paragraph || !Array.isArray(paragraph.notations)) return null;
+      if (paragraph.heading !== undefined && typeof paragraph.heading !== "string") return null;
+      if (paragraph.meter !== undefined && (!Array.isArray(paragraph.meter) || paragraph.meter.length !== 2 ||
+        !paragraph.meter.every((value: unknown) => typeof value === "number" && Number.isInteger(value) && value > 0))) return null;
+      if (paragraph.freeTime !== undefined && typeof paragraph.freeTime !== "boolean") return null;
+      if (paragraph.spans !== undefined) {
+        if (!Array.isArray(paragraph.spans)) return null;
+        const noteKeys = new Set(paragraph.notations.map((n: Notation) => n.key));
+        for (const span of paragraph.spans) {
+          if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
+            typeof span.startKey !== "string" || typeof span.endKey !== "string" ||
+            !noteKeys.has(span.startKey) || !noteKeys.has(span.endKey) ||
+            (span.label !== undefined && typeof span.label !== "string")) return null;
+        }
+      }
       for (const n of paragraph.notations) {
         if (!n || !["0", "1", "2", "3", "4", "5", "6", "7", "─", "│", "‖", "||:", ":||"].includes(n.note)) return null;
         if (n.key !== undefined) {
@@ -49,6 +63,10 @@ export function deserializeScore(json: string): Score | null {
       authors: Array.isArray(d.authors) ? d.authors.map(String) : [],
       paragraphs: d.paragraphs.map((p: Partial<Paragraph>) => ({
         key: String(p.key ?? `p_${Math.random()}`),
+        ...(p.heading !== undefined ? { heading: p.heading } : {}),
+        ...(p.meter !== undefined ? { meter: [p.meter[0], p.meter[1]] as [number, number] } : {}),
+        ...(p.freeTime !== undefined ? { freeTime: p.freeTime } : {}),
+        ...(p.spans !== undefined ? { spans: p.spans.map(span => ({ ...span })) } : {}),
         alignJustify: Boolean(p.alignJustify ?? true),
         lyrics: Array.isArray(p.lyrics) ? p.lyrics.map(String) : [],
         notations: (p.notations ?? []).map((n: Partial<Notation>) => ({
