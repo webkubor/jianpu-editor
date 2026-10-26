@@ -82,21 +82,51 @@
       line-height: 1.5;
     }
 
-    /* ── 顶栏：中国风轻质感磨砂玻璃 ── */
+    /* ── 顶栏：分层优雅设计 ── */
     header {
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 10px;
-      padding: 10px 24px;
+      padding: 12px 24px;
       border-bottom: 1px solid var(--bloom-border);
-      background: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      flex-wrap: wrap;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       position: sticky;
       top: 0;
       z-index: 50;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+    .header-row-primary {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .header-row-secondary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      flex-wrap: wrap;
+      border-top: 1px dashed var(--bloom-border-subtle);
+      padding-top: 8px;
+    }
+    .toolbar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bloom-surface);
+      padding: 3px 6px;
+      border-radius: 8px;
+      border: 1px solid var(--bloom-border-subtle);
+    }
+    .toolbar-divider {
+      width: 1px;
+      height: 18px;
+      background: var(--bloom-border);
+      margin: 0 4px;
     }
     .brand-group {
       display: flex;
@@ -380,47 +410,68 @@
 </head>
 <body>
   <header>
-    <div class="brand-group">
-      <span class="brand-icon">🪈</span>
-      <h1>简谱编辑器</h1>
+    <!-- 第一层：品牌、曲目核心元信息与曲库选择 -->
+    <div class="header-row-primary">
+      <div class="brand-group">
+        <span class="brand-icon">🪈</span>
+        <h1>简谱编辑器</h1>
+      </div>
+      <label>曲名 <input id="score-title" type="text" maxlength="120" value="未命名" style="width:140px; font-weight:600;" /></label>
+      <label>曲库 <select id="examples">
+        <option value="" selected>曲库示例...</option>
+      </select></label>
+      <label>调 <select id="tone"><option value="♭A">1=♭A</option><option value="A">1=A</option><option value="♭B">1=♭B</option><option value="B">1=B</option><option value="C" selected>1=C</option><option value="♭D">1=♭D</option><option value="D">1=D</option><option value="♭E">1=♭E</option><option value="E">1=E</option><option value="F">1=F</option><option value="♭G">1=♭G</option><option value="G">1=G</option></select></label>
+      <label>拍号 <select id="beat">
+        <option value="2/4">2/4</option>
+        <option value="3/4">3/4</option>
+        <option value="4/4" selected>4/4</option>
+        <option value="3/8">3/8</option>
+        <option value="6/8">6/8</option>
+      </select></label>
+      <label>速度 <input id="speed" type="number" min="20" max="240" value="72" /></label>
+      <label>作者 <input id="authors" type="text" style="width:130px" placeholder="作词 制谱" title="作者/词曲说明，以空格或逗号分隔多条" /></label>
+      <span id="status"></span>
     </div>
-    <label>曲名 <input id="score-title" type="text" maxlength="120" value="未命名" /></label>
-    <label>拍号 <select id="beat">
-      <option value="2/4">2/4</option>
-      <option value="3/4">3/4</option>
-      <option value="4/4" selected>4/4</option>
-      <option value="3/8">3/8</option>
-      <option value="6/8">6/8</option>
-    </select></label>
-    <label>调 <select id="tone"><option value="♭A">1=♭A</option><option value="A">1=A</option><option value="♭B">1=♭B</option><option value="B">1=B</option><option value="C" selected>1=C</option><option value="♭D">1=♭D</option><option value="D">1=D</option><option value="♭E">1=♭E</option><option value="E">1=E</option><option value="F">1=F</option><option value="♭G">1=♭G</option><option value="G">1=G</option></select></label>
-    <label>速度 <input id="speed" type="number" min="20" max="240" value="72" /></label>
-    <label>作者 <input id="authors" type="text" style="width:130px" placeholder="作词 制谱" title="作者/词曲说明，以空格或逗号分隔多条" /></label>
-    <label>曲库 <select id="examples">
-      <option value="" selected>曲库示例...</option>
-    </select></label>
-    <label title="切换 Bloom 莫兰迪中国风主题皮肤">🎨 <select id="theme-select">
-      <option value="cinnabar" selected>霁红 (Cinnabar)</option>
-      <option value="ripple">碧波 (Ripple)</option>
-      <option value="sage">松柏 (Sage)</option>
-      <option value="mist">远山 (Mist)</option>
-    </select></label>
-    <label title="调节试听与播放音量">🔊 <input id="volume" type="range" min="0" max="100" value="80" style="width:70px; vertical-align:middle;" /></label>
-    <button id="transpose-down" title="全谱降半音 (⌘↓)">♭降半音</button>
-    <button id="transpose-up" title="全谱升半音 (⌘↑)">♯升半音</button>
-    <button id="undo" title="撤销上一步（⌘Z / Ctrl+Z）">↶ 撤销</button>
-    <button id="redo" title="重做（⌘⇧Z / Ctrl+Shift+Z）">↪ 重做</button>
-    <button id="metronome" title="开启/关闭节拍器伴奏打点 (强拍高音/弱拍嗒音)">⏱ 节拍器</button>
-    <button id="play" title="Shift+点击 = 从光标处播放">▶ 播放 (Enter)</button>
-    <button id="new-score" title="清空并新建空白乐谱">📄 新建</button>
-    <button id="save">⬇ 保存 .json</button>
-    <button id="export-png">🖼 PNG</button>
-    <button id="export-svg" title="导出高清矢量 SVG 文件，可用于排版或出版">📐 SVG</button>
-    <button id="export-midi" title="导出单轨 MIDI，可导入 DAW / 打谱软件">🎵 MIDI</button>
-    <button id="export-wav" title="使用离线音频引擎直接导出生成 .wav 音频">🔊 WAV</button>
-    <button id="print" title="打印乐谱或导出保存为 A4 PDF 文件">🖨 打印 / PDF</button>
-    <a href="./tutorial.html" target="_blank" style="text-decoration:none;"><button type="button" title="打开图文教程页">📖 教程</button></a>
-    <button id="open-help" title="查看完整键盘快捷键与使用技巧 (?)">❓ 快捷键</button>
-    <span id="status"></span>
+
+    <!-- 第二层：操作工具条 (分组收纳，主次分明) -->
+    <div class="header-row-secondary">
+      <div class="toolbar-group">
+        <button id="play" style="font-weight:600; color:var(--bloom-accent);" title="Shift+点击 = 从光标处播放">▶ 播放 (Enter)</button>
+        <button id="metronome" title="开启/关闭节拍器伴奏打点 (强拍高音/弱拍嗒音)">⏱ 节拍器</button>
+        <label title="调节试听与播放音量" style="margin-left:4px;">🔊 <input id="volume" type="range" min="0" max="100" value="80" style="width:65px; vertical-align:middle;" /></label>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="undo" title="撤销上一步（⌘Z / Ctrl+Z）">↶ 撤销</button>
+        <button id="redo" title="重做（⌘⇧Z / Ctrl+Shift+Z）">↪ 重做</button>
+        <button id="transpose-down" title="全谱降半音 (⌘↓)">♭降半音</button>
+        <button id="transpose-up" title="全谱升半音 (⌘↑)">♯升半音</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="new-score" title="清空并新建空白乐谱">📄 新建</button>
+        <button id="save" title="保存乐谱工程 (⌘S)">⬇ 保存 .json</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="export-png">🖼 PNG</button>
+        <button id="export-svg" title="导出高清矢量 SVG 文件，可用于排版或出版">📐 SVG</button>
+        <button id="export-midi" title="导出单轨 MIDI，可导入 DAW / 打谱软件">🎵 MIDI</button>
+        <button id="export-wav" title="使用离线音频引擎直接导出生成 .wav 音频">🔊 WAV</button>
+        <button id="print" title="打印乐谱或导出保存为 A4 PDF 文件">🖨 打印 / PDF</button>
+      </div>
+
+      <div class="toolbar-group" style="margin-left:auto;">
+        <label title="切换 Bloom 莫兰迪中国风主题皮肤">🎨 <select id="theme-select">
+          <option value="cinnabar" selected>霁红 (Cinnabar)</option>
+          <option value="ripple">碧波 (Ripple)</option>
+          <option value="sage">松柏 (Sage)</option>
+          <option value="mist">远山 (Mist)</option>
+        </select></label>
+        <a href="./tutorial.html" target="_blank" style="text-decoration:none;"><button type="button" title="打开图文教程页">📖 教程</button></a>
+        <button id="open-help" title="查看完整键盘快捷键与使用技巧 (?)">❓ 快捷键</button>
+      </div>
+    </div>
   </header>
   <main>
     <div id="canvas"></div>

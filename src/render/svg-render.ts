@@ -14,31 +14,31 @@ import { A4_PAGE, paginateScore, type ScorePage } from "./pagination.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
-  fontSize: 30,
-  subFontSize: 16,
+  fontSize: 28,
+  subFontSize: 15,
   /** 数字间基础步进（由测宽动态计算，此为最小值） */
-  minGap: 18,
-  /** 音符上方八度点初始偏移 */
-  dotAboveY: -14,
-  /** 音符下方八度点初始偏移 */
-  dotBelowY: 16,
+  minGap: 20,
+  /** 音符上方八度点初始偏移（拉开距离杜绝与数字笔画重合） */
+  dotAboveY: -16,
+  /** 音符下方八度点初始偏移（拉开距离杜绝与减时线重叠） */
+  dotBelowY: 22,
   /** 八度点间距 */
   dotStep: 6,
-  dotR: 2.6,
+  dotR: 2.2,
   /** 附点偏移 */
   dottedDx: 14,
   /** 减时线第一层 y */
-  underlineY0: 17,
-  underlineStep: 5,
+  underlineY0: 16,
+  underlineStep: 4.5,
   /** 行高 */
   lineHeight: 64,
   /** 段间距 */
   paraGap: 26,
   pageMarginX: 48,
   titleFontSize: 26,
-  headerFontSize: 15,
+  headerFontSize: 14,
   /** 歌词字号与基线偏移 */
-  lyricFontSize: 15,
+  lyricFontSize: 14,
   lyricDy: 34,
 } as const;
 
@@ -109,10 +109,11 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
   }));
   const n = g.n;
   if (n.note === "│" || n.note === "‖") {
-    const h = 30;
-    group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
+    const yTop = -14;
+    const yBot = 20;
+    group.appendChild(el("line", { x1: 0, y1: yTop, x2: 0, y2: yBot, stroke: "currentColor", "stroke-width": 1.4 }));
     if (n.note === "‖") {
-      group.appendChild(el("line", { x1: 4, y1: -h / 2 - 4, x2: 4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
+      group.appendChild(el("line", { x1: 4.5, y1: yTop, x2: 4.5, y2: yBot, stroke: "currentColor", "stroke-width": 2.8 }));
     }
     // 跳房子反复门楼标记 (Volta brackets: 1. 或 2.)
     if (n.volta) {
@@ -128,29 +129,31 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     return group;
   }
   if (n.note === REPEAT_START || n.note === REPEAT_END) {
-    const h = 30;
+    const yTop = -14;
+    const yBot = 20;
     if (n.note === REPEAT_START) {
       // 反复开始：左粗右细 + 右侧两圆点
-      group.appendChild(el("line", { x1: -4, y1: -h / 2 - 4, x2: -4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
-      group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
-      group.appendChild(el("circle", { cx: 4, cy: -8, r: 2, fill: "currentColor" }));
-      group.appendChild(el("circle", { cx: 4, cy: 0, r: 2, fill: "currentColor" }));
+      group.appendChild(el("line", { x1: -4.5, y1: yTop, x2: -4.5, y2: yBot, stroke: "currentColor", "stroke-width": 2.8 }));
+      group.appendChild(el("line", { x1: 0, y1: yTop, x2: 0, y2: yBot, stroke: "currentColor", "stroke-width": 1.4 }));
+      group.appendChild(el("circle", { cx: 4.5, cy: -2, r: 2.2, fill: "currentColor" }));
+      group.appendChild(el("circle", { cx: 4.5, cy: 9, r: 2.2, fill: "currentColor" }));
     } else {
       // 反复结束：左侧两圆点 + 左细右粗
-      group.appendChild(el("circle", { cx: -4, cy: -8, r: 2, fill: "currentColor" }));
-      group.appendChild(el("circle", { cx: -4, cy: 0, r: 2, fill: "currentColor" }));
-      group.appendChild(el("line", { x1: 0, y1: -h / 2 - 4, x2: 0, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 1.4 }));
-      group.appendChild(el("line", { x1: 4, y1: -h / 2 - 4, x2: 4, y2: h / 2 - 4, stroke: "currentColor", "stroke-width": 3 }));
+      group.appendChild(el("circle", { cx: -4.5, cy: -2, r: 2.2, fill: "currentColor" }));
+      group.appendChild(el("circle", { cx: -4.5, cy: 9, r: 2.2, fill: "currentColor" }));
+      group.appendChild(el("line", { x1: 0, y1: yTop, x2: 0, y2: yBot, stroke: "currentColor", "stroke-width": 1.4 }));
+      group.appendChild(el("line", { x1: 4.5, y1: yTop, x2: 4.5, y2: yBot, stroke: "currentColor", "stroke-width": 2.8 }));
     }
     return group;
   }
   if (n.note === EXTEND) {
-    group.appendChild(el("text", {
-      "text-anchor": "middle",
-      "dominant-baseline": "middle",
-      "font-size": LAYOUT.fontSize,
-      transform: "scale(0.9,1)",
-    }, EXTEND));
+    group.appendChild(el("line", {
+      x1: -12, y1: 0, x2: 12, y2: 0,
+      stroke: "currentColor",
+      "stroke-width": 2.2,
+      "stroke-linecap": "round",
+      class: "extend-line",
+    }));
   } else {
     // 前置倚音小音符渲染（如 ⁵ 或 ³⁵，位于左上方，带小斜线与小圆弧连线）
     let mainXOffset = 0;
@@ -203,26 +206,31 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     // 主体数字
     group.appendChild(el("text", {
       x: mainXOffset,
+      y: 0,
       "text-anchor": "middle",
       "dominant-baseline": "middle",
       "font-size": LAYOUT.fontSize,
+      "font-weight": 600,
+      "font-family": "'PingFang SC', 'MiSans', -apple-system, sans-serif",
     }, n.note));
   }
   // 附点
   if (n.dotted) {
     group.appendChild(el("circle", { cx: g.core / 2 + 3, cy: 5, r: LAYOUT.dotR, fill: "currentColor" }));
   }
-  // 八度点
+  // 八度点：若有减时线，下八度点必须排在所有减时线下方！
   const mainX = (n.graceNotes?.length || 0) * 12 / 2;
   const dir = n.octave > 0 ? -1 : 1;
-  const y0 = n.octave > 0 ? LAYOUT.dotAboveY : LAYOUT.dotBelowY;
+  const y0 = n.octave > 0
+    ? LAYOUT.dotAboveY
+    : (n.underline > 0 ? LAYOUT.underlineY0 + n.underline * LAYOUT.underlineStep + 4 : LAYOUT.dotBelowY);
   for (let i = 0; i < Math.abs(n.octave); i += 1) {
     group.appendChild(el("circle", { cx: mainX, cy: y0 + dir * LAYOUT.dotStep * i, r: LAYOUT.dotR, fill: "currentColor" }));
   }
 
   // 民族管乐专属技巧记号渲染 (tr 颤音 / ↗ 上滑音 / ↘ 下滑音 / T/K 吐音 / ~ 波音 / fl 花舌 / vib 气震音)
   const tech = n.technique;
-  let techTopY = n.octave > 0 ? LAYOUT.dotAboveY - LAYOUT.dotStep * (n.octave - 1) - 10 : -18;
+  let techTopY = n.octave > 0 ? LAYOUT.dotAboveY - LAYOUT.dotStep * (n.octave - 1) - 12 : -18;
 
   if (tech) {
     if (tech.trill) {
@@ -319,12 +327,15 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
   }
   // 独立减时线（连排横线由段落层连线绘制，未连排则画独立横线）
   if (n.underline > 0) {
+    const underX1 = -g.core / 2 + mainX;
+    const underX2 = g.core / 2 + mainX;
     for (let i = 0; i < n.underline; i += 1) {
       group.appendChild(el("line", {
-        x1: -g.core / 2, x2: g.core / 2,
+        x1: underX1, x2: underX2,
         y1: LAYOUT.underlineY0 + i * LAYOUT.underlineStep,
         y2: LAYOUT.underlineY0 + i * LAYOUT.underlineStep,
-        stroke: "currentColor", "stroke-width": 1.3,
+        stroke: "currentColor", "stroke-width": 1.6,
+        "stroke-linecap": "round",
         class: `underline-line underline-layer-${i}`,
       }));
     }
@@ -356,18 +367,36 @@ export function renderPageSvg(
     }, score.title));
 
     const header = `1 = ${score.tone}    ${score.beat[0]}/${score.beat[1]}    ♩= ${score.speed}`;
-    svg.appendChild(el("text", {
-      x: A4_PAGE.marginLeft, y: 80,
-      "font-size": LAYOUT.headerFontSize,
-      fill: "var(--bloom-text-muted, #727a80)",
-    }, header));
+    let yHeader = 84;
+    const hasLongHeader = score.authors.join("  ").length > 20;
+    if (hasLongHeader) {
+      // 作者说明较长时，调号居左，作者换下一行或紧跟排列
+      svg.appendChild(el("text", {
+        x: A4_PAGE.marginLeft, y: 78,
+        "font-size": LAYOUT.headerFontSize,
+        fill: "var(--bloom-text-muted, #727a80)",
+      }, header));
 
-    svg.appendChild(el("text", {
-      x: A4_PAGE.width - A4_PAGE.marginRight, y: 80,
-      "text-anchor": "end",
-      "font-size": LAYOUT.headerFontSize,
-      fill: "var(--bloom-text-muted, #727a80)",
-    }, score.authors.join("  ")));
+      svg.appendChild(el("text", {
+        x: A4_PAGE.width - A4_PAGE.marginRight, y: 78,
+        "text-anchor": "end",
+        "font-size": LAYOUT.headerFontSize,
+        fill: "var(--bloom-text-muted, #727a80)",
+      }, score.authors.join("  ")));
+    } else {
+      svg.appendChild(el("text", {
+        x: A4_PAGE.marginLeft, y: yHeader,
+        "font-size": LAYOUT.headerFontSize,
+        fill: "var(--bloom-text-muted, #727a80)",
+      }, header));
+
+      svg.appendChild(el("text", {
+        x: A4_PAGE.width - A4_PAGE.marginRight, y: yHeader,
+        "text-anchor": "end",
+        "font-size": LAYOUT.headerFontSize,
+        fill: "var(--bloom-text-muted, #727a80)",
+      }, score.authors.join("  ")));
+    }
   } else {
     // 后续页简略页眉：微型曲名居中
     svg.appendChild(el("text", {
