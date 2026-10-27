@@ -82,7 +82,7 @@ export function deserializeScore(json: string): Score | null {
         if (!Array.isArray(paragraph.spans)) return null;
         const noteKeys = new Set(paragraph.notations.map((n: Notation) => n.key));
         for (const span of paragraph.spans) {
-          if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
+          if (!span || !["slur", "slide", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
             typeof span.startKey !== "string" || typeof span.endKey !== "string" ||
             !noteKeys.has(span.startKey) || !mainNoteKeys.has(span.endKey) ||
             (span.label !== undefined && typeof span.label !== "string")) return null;

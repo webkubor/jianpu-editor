@@ -102,6 +102,9 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       slur(3, "2/0 3/0");
       // 第2小节2.→3的弧线可辨；行首1.→低6与低5→低3带箭头，不作普通弧。
       slur(11, "2/0 3/0");
+      // 两版均明确的向右下箭头弧，仅存印刷形状，不替未知叉形符号命名。
+      if (para.notations[9]?.note === "1" && para.notations[10]?.note === "6" && para.notations[10].octave === -1) add("slide", 9, 10);
+      if (para.notations[15]?.note === "5" && para.notations[15].octave === -1 && para.notations[16]?.note === "3" && para.notations[16].octave === -1) add("slide", 15, 16);
       // 第3小节6.5356上层圆弧以6为两端；不把波音及末音叉号作为箭头。
       slur(26, "6/0 5/0 3/0 5/0 6/0");
     }

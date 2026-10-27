@@ -409,7 +409,7 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
       const value = JSON.parse(line.slice(13));
       if (!Array.isArray(value)) throw new SyntaxError("跨段跨度须为数组");
       for (const span of value) {
-        if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
+        if (!span || !["slur", "slide", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
           ![span.start, span.end].every(a => Array.isArray(a) && a.length === 2 && a.every(v => Number.isInteger(v) && v >= 0)) ||
           (span.label !== undefined && typeof span.label !== "string")) throw new SyntaxError("跨段跨度元数据有误");
         crossSpans.push(span);
@@ -435,7 +435,7 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
       const spans: unknown = JSON.parse(line.slice(7));
       if (!target || !Array.isArray(spans)) throw new SyntaxError("跨度须在音符行后指定数组");
       target.spans = spans.map(span => {
-        if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
+        if (!span || !["slur", "slide", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
           !Number.isInteger(span.start) || !Number.isInteger(span.end) ||
           !target.notations[span.start] || !target.notations[span.end] ||
           (span.label !== undefined && typeof span.label !== "string")) throw new SyntaxError("跨度端点或类型有误");

@@ -24,6 +24,10 @@ test("牧民新歌工作稿保留原图定位、变拍和复杂连音组", () =>
   assert.equal(slowCue?.startBeat, 0);
   assert.equal(slowCue?.timelineBeats, 8);
   assert.equal(slowCue?.resumeKey, undefined);
+  const slidePara = score.paragraphs[7];
+  assert.deepEqual(slidePara.spans?.filter(s => s.kind === "slide").map(s => [
+    slidePara.notations.findIndex(n => n.key === s.startKey), slidePara.notations.findIndex(n => n.key === s.endKey),
+  ]), [[9, 10], [15, 16]]);
 });
 
 test("倚音在高八度前缀后保留，技巧完整往返", () => {

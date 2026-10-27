@@ -1,12 +1,12 @@
 /**
- * 同行音乐跨度渲染：连音线、渐强弱、颤音和连音组括号。
+ * 同行音乐跨度渲染：连音线、箭头滑音弧、渐强弱、颤音和连音组括号。
  * 坐标由调用方提供；只负责 SVG 与局部避让，不推断曲谱内容或跨行续接。
  * 路由：乐谱编辑器 SVG 行；无后端 API。
  */
 
 /** 由真实谱面数据指定的跨度；两个 key 必须位于当前行。 */
 export type MusicSpan = {
-  kind: "slur" | "crescendo" | "diminuendo" | "trill" | "tuplet";
+  kind: "slur" | "slide" | "crescendo" | "diminuendo" | "trill" | "tuplet";
   startKey: string;
   endKey: string;
   label?: string;
@@ -14,7 +14,7 @@ export type MusicSpan = {
 
 type Position = { x: number; top: number; bottom: number };
 type Bounds = { left: number; right: number; top: number; bottom: number };
-type Placement = Bounds & { start: number; end: number; label: string; labelWidth: number };
+type Placement = Bounds & { start: number; end: number; forward: boolean; label: string; labelWidth: number };
 
 const NS = "http://www.w3.org/2000/svg";
 const LAYER = "data-music-spans";
@@ -27,6 +27,8 @@ const HAIRPIN_HEIGHT = 10;
 const TEXT_HEIGHT = 22;
 const WAVE_AMPLITUDE = 2;
 const WAVE_STEP = 4;
+const ARROW_LENGTH = 7;
+const ARROW_HALF_WIDTH = 3;
 
 function validPosition(position: Position | undefined): position is Position {
   return !!position && Number.isFinite(position.x) && Number.isFinite(position.top)
@@ -87,7 +89,7 @@ function place(
   const right = span.kind === "trill" ? Math.max(end, start + width + 12)
     : span.kind === "tuplet" ? Math.max(end, center + width / 2 + 4) : end;
   const below = span.kind === "crescendo" || span.kind === "diminuendo";
-  const height = below ? HAIRPIN_HEIGHT : span.kind === "slur"
+  const height = below ? HAIRPIN_HEIGHT : span.kind === "slur" || span.kind === "slide"
     ? Math.min(24, Math.max(10, (end - start) * 0.15)) : TEXT_HEIGHT;
   let top = Math.min(first.top, last.top);
   let bottom = Math.max(first.bottom, last.bottom);
@@ -105,7 +107,7 @@ function place(
     }
   }
   return {
-    start, end, left, right, label, labelWidth: width,
+    start, end, forward: last.x > first.x, left, right, label, labelWidth: width,
     top: below ? edge : edge - height,
     bottom: below ? edge + height : edge,
   };
@@ -129,10 +131,27 @@ function draw(row: SVGGElement, span: MusicSpan, p: Placement): SVGGElement {
   });
   const { start, end, top, bottom } = p;
   switch (span.kind) {
-    case "slur": {
+    case "slur":
+    case "slide": {
       const inset = (end - start) / 4;
       group.appendChild(path(row,
         `M ${start} ${bottom} C ${start + inset} ${top} ${end - inset} ${top} ${end} ${bottom}`));
+      if (span.kind === "slide") {
+        // 沿终点切线手绘箭头，不使用共享 defs/marker ID，也不推断音高方向。
+        const tip = p.forward ? end : start;
+        const dx = p.forward ? inset : -inset;
+        const dy = bottom - top;
+        const length = Math.hypot(dx, dy);
+        const ux = dx / length;
+        const uy = dy / length;
+        const arrowLength = Math.min(ARROW_LENGTH, length / 2);
+        const halfWidth = Math.min(ARROW_HALF_WIDTH, arrowLength / 2);
+        const baseX = tip - ux * arrowLength;
+        const baseY = bottom - uy * arrowLength;
+        group.appendChild(path(row,
+          `M ${baseX - uy * halfWidth} ${baseY + ux * halfWidth} L ${tip} ${bottom}`
+          + ` L ${baseX + uy * halfWidth} ${baseY - ux * halfWidth}`));
+      }
       break;
     }
     case "crescendo":

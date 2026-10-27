@@ -93,7 +93,8 @@ export interface Notation {
 
 /** 跨音对象使用稳定音符键，与音值延音 tie 分开保存。 */
 export interface MusicSpan {
-  kind: "slur" | "crescendo" | "diminuendo" | "trill" | "tuplet";
+  /** slide 为印刷箭头弧线，不推断音高的上滑或下滑。 */
+  kind: "slur" | "slide" | "crescendo" | "diminuendo" | "trill" | "tuplet";
   startKey: string;
   endKey: string;
   label?: string;
