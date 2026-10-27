@@ -1,6 +1,6 @@
 /**
  * 《牧民新歌》逐图确认的视觉跨度；在 compileLine 后以主音索引绑定稳定 key。
- * 证据：mumin1.png / mumin4.png 为主，mumin-edition2-page1.png / page2.png 对照。
+ * 证据：原四页版 mumin1.png / mumin2.png / mumin4.png 为主，mumin-edition2-page1.png / page2.png 对照。
  * 两版均为转载制谱，非认证原稿；仅补弧线、发夹、tr 延续线及连音组标签，不改音符或时值。
  */
 import type { MusicSpan, Paragraph } from "./model.ts";
@@ -124,20 +124,56 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       slur(33, "2/0 3/0");
     }
   }
-  if (page === 2 && [5, 6, 7, 8, 9].includes(sourceRow)) {
-    const bars: number[][] = [[]];
-    para.notations.forEach((note, index) => {
-      if (["│", "‖", "||:", ":||"].includes(note.note)) bars.push([]);
-      else bars[bars.length - 1].push(index);
-    });
-    const link = (fromBar: number, fromNote: number, toBar: number, toNote: number) => {
-      const from = bars[fromBar]?.[fromNote], to = bars[toBar]?.[toNote];
-      if (from !== undefined && to !== undefined) add("slur", from, to);
+  if (page === 2 && [1, 5, 6, 7, 8, 9].includes(sourceRow)) {
+    const curve = (kind: "slur" | "slide", start: number, pitches: string) => {
+      // 索引包含小节线、延音线而不含倚音；逐音核对唱名及八度后才绑定 key。
+      const expected = pitches.split(" ");
+      const actual = para.notations.slice(start, start + expected.length);
+      if (actual.length === expected.length && actual.every((n, i) => `${n.note}/${n.octave}` === expected[i])) {
+        add(kind, start, start + expected.length - 1);
+      }
     };
-    // 原四页版第二页：自豪地3、6、7、9行中明确的跨小节长音弧。
-    if (sourceRow === 5) { link(2, 0, 3, 0); link(4, 0, 4, 1); }
-    if (sourceRow === 6 || sourceRow === 7 || sourceRow === 9) link(0, 0, 1, 0);
-    if (sourceRow === 8) link(0, 0, 1, 1);
+    if (sourceRow === 1) {
+      // 原四页版首小节5→3、6→高1有向右下箭头；小字倚音自身的弧不另建跨度。
+      curve("slide", 0, "5/0 3/0");
+      curve("slide", 2, "6/0 1/1");
+      // 第2小节三条普通弧：5→高1、6.5356、2.→3；叉形记号不作箭头。
+      curve("slur", 8, "5/0 3/0 6/0 5/0 6/0 1/1");
+      curve("slur", 14, "6/0 5/0 3/0 5/0 6/0");
+      curve("slur", 19, "2/0 3/0");
+      // 渐慢小节弧从主音2至带倚音3的主音5，排除末尾高1的延长符号。
+      curve("slur", 25, "2/0 3/0 5/0");
+    }
+    if (sourceRow === 5) {
+      // 保留已有跨小节6—→6及附点6→高1；第4小节另有6→5普通短弧。
+      curve("slur", 8, "6/0 ─/0 │/0 6/0");
+      curve("slur", 15, "6/0 1/1");
+      curve("slur", 12, "6/0 5/0");
+      // 末小节5→3右端有箭头，与上方波音分开记录。
+      curve("slide", 18, "5/0 3/0");
+    }
+    if (sourceRow === 6) {
+      curve("slur", 0, "3/0 ─/0 │/0 3/0");
+      // 第5小节5→3、末小节3→5的弧均有明确向右箭头；倚音弧不占主音索引。
+      curve("slide", 14, "5/0 3/0");
+      curve("slide", 23, "3/0 5/0");
+    }
+    if (sourceRow === 7) {
+      curve("slur", 0, "6/-1 ─/0 │/0 6/-1");
+      // 原四页版第3、5、7小节均有附点6至高1的无箭头圆弧。
+      curve("slur", 6, "6/0 1/1");
+      curve("slur", 13, "6/0 1/1");
+      curve("slur", 19, "6/0 1/1");
+    }
+    if (sourceRow === 8) {
+      // 行首两层弧：外弧2—→3（叉形独立），内弧2—→2；保留原外弧而不重复。
+      curve("slur", 0, "2/0 ─/0 │/0 2/0 3/0");
+      curve("slur", 0, "2/0 ─/0 │/0 2/0");
+      curve("slur", 6, "5/0 3/0");
+      // 末小节3→5为箭头弧；第4小节小字高1→主音6仅属倚音，不建跨度。
+      curve("slide", 24, "3/0 5/0");
+    }
+    if (sourceRow === 9) curve("slur", 0, "6/-1 ─/0 │/0 6/-1");
   }
   if (page === 4 && sourceRow === 2) {
     // 主图第四页第2系统、对照版第2页倒数第2系统：23→5、35→6、5→6、6→高2。
