@@ -87,6 +87,8 @@ export interface Notation {
   beatFrac?: number;
   /** 前置倚音小音符列表（如 ⁵ 或 ³⁵） */
   graceNotes?: GraceNote[];
+  /** 后置倚音小音符列表（DSL 主音及时值后缀后的 <…>，不占主音时值） */
+  postGraceNotes?: GraceNote[];
   /** 管乐专属技巧记号 (吐音/滑音/颤音等) */
   technique?: WindTechnique;
   /** 反复跳跃房子标注（如 "1." 或 "2."，在小节上方画横跨门楼线） */

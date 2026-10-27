@@ -8,6 +8,7 @@
  *   6, 1 2 3                                  逗号后缀 = 低八度，' 或 ^ = 高八度
  *   #4  b7                                    #=升号 b=降号（也可写 ♯♭）
  *   5. 3.                                     点后缀 = 附点
+ *   (12)1^.{w}:0.75/1<3>                     后置倚音在主音修饰及时值后缀之后、tie 之前
  *   1~2                                       连音线（tie）
  *   [词:你 好 吗]                              歌词行（与发声符号逐个对应，- 占位跳过）
  *   双空格 = 拍边界（组结束）。例：「1 2  3 4」= 前一拍两音、后一拍两音。
@@ -15,7 +16,7 @@
  */
 
 import { BAR, createBar, createExtend, createNote, createParagraph, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, createScore } from "./model.ts";
-import type { NoteDigit, Notation, Paragraph, Score, WindTechnique } from "./model.ts";
+import type { GraceNote, NoteDigit, Notation, Paragraph, Score, WindTechnique } from "./model.ts";
 
 /** 词法单元 */
 export type Token =
@@ -30,6 +31,7 @@ export type Token =
       graceNotes?: { note: string; octave: number; accidental?: "♯" | "♭"; mordent?: boolean }[];
       technique?: WindTechnique;
     }
+  | { t: "postGrace"; notes: GraceNote[] }
   | { t: "duration"; beats: number; underline: number }
   | { t: "extend" }
   | { t: "bar"; double?: boolean; repeat?: "start" | "end"; volta?: string }
@@ -45,6 +47,35 @@ export interface LexResult {
   tokens: Token[];
   /** tokens 的下标 i：tokens[i] 之前是拍边界 */
   beatBreaks: Set<number>;
+}
+
+/** 前置与后置倚音共用数字、八度、变音和波音解析。 */
+function parseGraceNotes(inner: string): GraceNote[] {
+  const parsedGrace: GraceNote[] = [];
+  let gi = 0;
+  let gOctUp = false;
+  let graceAccidental: "♯" | "♭" | undefined;
+  while (gi < inner.length) {
+    const gc = inner[gi];
+    if (gc === "^") { gOctUp = true; gi++; continue; }
+    if (/[#b♯♭]/.test(gc)) { graceAccidental = gc === "b" || gc === "♭" ? "♭" : "♯"; gi++; continue; }
+    if (/[1-7]/.test(gc)) {
+      let oct = gOctUp ? 1 : 0;
+      gOctUp = false;
+      gi++;
+      while (gi < inner.length && (inner[gi] === "'" || inner[gi] === "," || inner[gi] === "^")) {
+        oct += inner[gi] === "," ? -1 : 1;
+        gi++;
+      }
+      const mordent = inner.slice(gi, gi + 3) === "{w}";
+      if (mordent) gi += 3;
+      parsedGrace.push({ note: gc as NoteDigit, octave: oct, ...(graceAccidental ? { accidental: graceAccidental } : {}), ...(mordent ? { mordent: true } : {}) });
+      graceAccidental = undefined;
+      continue;
+    }
+    gi++;
+  }
+  return parsedGrace;
 }
 
 export function tokenizeLine(line: string): LexResult {
@@ -81,6 +112,20 @@ export function tokenizeLine(line: string): LexResult {
       continue;
     }
     spaceRun = 0;
+    // 后置倚音紧邻主音及其时值后缀，位于连音线之前。
+    if (c === "<") {
+      const prev = tokens.at(-1);
+      if (i === 0 || /\s/.test(line[i - 1]) || !prev || (prev.t !== "note" && prev.t !== "duration")) {
+        throw new SyntaxError(`位置 ${i}：后置倚音须紧随音符或其时值后缀`);
+      }
+      const close = line.indexOf(">", i);
+      if (close < 0) throw new SyntaxError(`位置 ${i}：后置倚音缺右括号 >`);
+      const notes = parseGraceNotes(line.slice(i + 1, close));
+      if (!notes.length) throw new SyntaxError(`位置 ${i}：后置倚音需要数字音符`);
+      tokens.push({ t: "postGrace", notes });
+      i = close + 1;
+      continue;
+    }
     // 反复结束记号 :||
     if (line.slice(i, i + 3) === ":||" || line.slice(i, i + 3) === ":‖") {
       tokens.push({ t: "bar", repeat: "end" });
@@ -161,31 +206,7 @@ export function tokenizeLine(line: string): LexResult {
       const close = line.indexOf(")", i);
       if (close > i + 1) {
         const inner = line.slice(i + 1, close);
-        // 解析括号内的微型数字音符与八度
-        const parsedGrace: { note: string; octave: number; accidental?: "♯" | "♭"; mordent?: boolean }[] = [];
-        let gi = 0;
-        let gOctUp = false;
-        let graceAccidental: "♯" | "♭" | undefined;
-        while (gi < inner.length) {
-          const gc = inner[gi];
-          if (gc === "^") { gOctUp = true; gi++; continue; }
-          if (/[#b♯♭]/.test(gc)) { graceAccidental = gc === "b" || gc === "♭" ? "♭" : "♯"; gi++; continue; }
-          if (/[1-7]/.test(gc)) {
-            let oct = gOctUp ? 1 : 0;
-            gOctUp = false;
-            gi++;
-            while (gi < inner.length && (inner[gi] === "'" || inner[gi] === "," || inner[gi] === "^")) {
-              oct += inner[gi] === "," ? -1 : 1;
-              gi++;
-            }
-            const mordent = inner.slice(gi, gi + 3) === "{w}";
-            if (mordent) gi += 3;
-            parsedGrace.push({ note: gc, octave: oct, ...(graceAccidental ? { accidental: graceAccidental } : {}), ...(mordent ? { mordent: true } : {}) });
-            graceAccidental = undefined;
-            continue;
-          }
-          gi++;
-        }
+        const parsedGrace = parseGraceNotes(inner);
         if (parsedGrace.length > 0) {
           graceNotes = parsedGrace;
           i = close + 1;
@@ -332,6 +353,10 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
       }
       notations.push(n);
       beatNotes.push(n);
+    } else if (tk.t === "postGrace") {
+      const prev = notations.at(-1);
+      if (!prev || !/^[0-7]$/.test(prev.note)) throw new SyntaxError("后置倚音前需要音符");
+      prev.postGraceNotes = tk.notes;
     } else if (tk.t === "duration") {
       const prev = notations.at(-1);
       if (!prev || prev.note === "│" || prev.note === DOUBLE_BAR) throw new SyntaxError("时值后缀前需要音符或延音线");

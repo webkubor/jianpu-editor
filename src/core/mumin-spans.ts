@@ -12,6 +12,14 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
     if (!para.notations[start] || !para.notations[end]) return;
     spans.push({ kind, startKey: para.notations[start].key, endKey: para.notations[end].key, ...(label ? { label } : {}) });
   };
+  const hairpin = (kind: "crescendo" | "diminuendo", start: number, pitches: string) => {
+    // 编译索引含小节线、延音线而不含倚音；完整唱名及八度吻合才绑定原图发夹。
+    const expected = pitches.split(" ");
+    const actual = para.notations.slice(start, start + expected.length);
+    if (actual.length === expected.length && actual.every((n, i) => `${n.note}/${n.octave}` === expected[i])) {
+      add(kind, start, start + expected.length - 1);
+    }
+  };
   const tuplet = (start: number, notes: string, label: string) => {
     // notes 只核对编译后的主音；graceNotes 内的小字不占索引，也不计入组数。
     // 顺序不符时不把旧位置的括号错误地套到后来改写的旋律上。
@@ -97,6 +105,11 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       slur(37, "2/0 3/0");
     }
     if (sourceRow === 7) {
+      // 原图第1小节2至低6后的延音线渐弱；第3小节5356至长音2渐强。
+      hairpin("diminuendo", 3, "2/0 3/0 1/0 6/-1 ─/0");
+      hairpin("crescendo", 27, "5/0 3/0 5/0 6/0 2/0");
+      // 末组附点2至末音2：原图明确收尖为渐弱，对照版为渐强，遵从原图。
+      hairpin("diminuendo", 32, "2/0 2/0 1/0 2/0");
       // 主图第7系统第1小节低5→低6、2→3均为短圆弧；后者上方叉号不是箭头。
       slur(1, "5/-1 6/-1");
       slur(3, "2/0 3/0");
@@ -109,6 +122,9 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       slur(26, "6/0 5/0 3/0 5/0 6/0");
     }
     if (sourceRow === 8) {
+      // 原图第1小节附点2至末音5、第3小节656中的低5至末音3均为渐强。
+      hairpin("crescendo", 6, "2/0 3/0 2/0 1/0 2/0 3/0 3/0 5/0");
+      hairpin("crescendo", 26, "5/-1 6/-1 6/-1 1/0 2/0 1/0 2/0 2/0 3/0");
       // 主图第8系统第1小节6.561、2.3212的两条圆弧，端点分别为低6→1、2→2。
       slur(2, "6/-1 5/-1 6/-1 1/0");
       slur(6, "2/0 3/0 2/0 1/0 2/0");
@@ -134,6 +150,8 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       }
     };
     if (sourceRow === 1) {
+      // 原图渐慢末小节从带倚音5的低3至延长号高1，下方楔形向右张开。
+      hairpin("crescendo", 22, "3/-1 5/-1 6/-1 2/0 3/0 5/0 1/1");
       // 原四页版首小节5→3、6→高1有向右下箭头；小字倚音自身的弧不另建跨度。
       curve("slide", 0, "5/0 3/0");
       curve("slide", 2, "6/0 1/1");
@@ -203,6 +221,8 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       slur(15, "3/0 5/0 6/0");
     }
     if (sourceRow === 4) {
+      // 原图第2小节下方渐强由带倚音5的低3张开至末音低6；两版端点一致。
+      hairpin("crescendo", 4, "3/-1 5/-1 6/-1");
       slur(4, "3/-1 5/-1");
       slur(9, "2/0 │/0 3/0 3/0 1/1");
     }

@@ -90,7 +90,9 @@ function noteGeometry(n: Notation) {
   const graceWidths = (n.graceNotes ?? []).map(gn => Math.max(8, textWidth((gn.accidental ?? "") + gn.note, 13, GRACE_FONT, 600)));
   const graceWidth = graceWidths.reduce((sum, width) => sum + width + 4, 0);
   const left = accidentalWidth + (graceWidth ? graceWidth + 4 : 0);
-  const right = n.dotted ? 6 + LAYOUT.dotR : 0;
+  const postWidth = (n.postGraceNotes ?? []).reduce((sum, gn) => sum + Math.max(8,
+    textWidth((gn.accidental ?? "") + gn.note, 13, GRACE_FONT, 600)) + 4, 0);
+  const right = (n.dotted ? 6 + LAYOUT.dotR : 0) + (postWidth ? postWidth + 6 : 0);
   const mainX = (left - right) / 2;
   return { digitWidth, accidentalWidths, accidentalWidth, graceWidths, mainX, core: left + digitWidth + right };
 }
@@ -216,6 +218,21 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       }));
     }
 
+    if (n.postGraceNotes?.length) {
+      let postX = mainX + geometry.digitWidth / 2 + (n.dotted ? 12 : 6);
+      n.postGraceNotes.forEach(gn => {
+        const width = Math.max(8, textWidth((gn.accidental ?? "") + gn.note, 13, GRACE_FONT, 600));
+        const gx = postX + width / 2;
+        group.appendChild(el("text", { x: gx, y: -10, "text-anchor": "middle", "dominant-baseline": "middle",
+          "font-size": 13, class: "post-grace-note" }, (gn.accidental ?? "") + gn.note));
+        for (let octave = 0; octave < Math.abs(gn.octave); octave++) {
+          group.appendChild(el("circle", { cx: gx, cy: gn.octave > 0 ? -20 - octave * 4 : 4 + octave * 4, r: 1.3, fill: "currentColor" }));
+        }
+        group.appendChild(el("line", { x1: gx - 4, x2: gx + 4, y1: -3, y2: -3, stroke: "currentColor", "stroke-width": 0.9 }));
+        group.appendChild(el("line", { x1: gx - 4, x2: gx + 4, y1: -0.5, y2: -0.5, stroke: "currentColor", "stroke-width": 0.9 }));
+        postX += width + 4;
+      });
+    }
     // 升降号
     let accX = mainX - geometry.digitWidth / 2 - geometry.accidentalWidth;
     for (const a of n.prefixAccidentals) {

@@ -29,8 +29,10 @@ function validateNotation(value: unknown, keys: Set<string>): boolean {
     !n.prefixAccidentals.every((value: unknown) => value === "♯" || value === "♭"))) return false;
   if (n.topDecorators !== undefined && (!Array.isArray(n.topDecorators) ||
     !n.topDecorators.every((value: unknown) => typeof value === "string"))) return false;
-  if (n.graceNotes !== undefined && (!Array.isArray(n.graceNotes) ||
-    !n.graceNotes.every(g => g && (g.mordent === undefined || typeof g.mordent === "boolean")))) return false;
+  for (const notes of [n.graceNotes, n.postGraceNotes]) {
+    if (notes !== undefined && (!Array.isArray(notes) ||
+      !notes.every(g => g && (g.mordent === undefined || typeof g.mordent === "boolean")))) return false;
+  }
   if (n.technique !== undefined) {
     if (!n.technique || typeof n.technique !== "object" || Array.isArray(n.technique)) return false;
     for (const flag of ["harmonic", "fingerStrike", "appoggiatura"] as const) {
@@ -54,6 +56,7 @@ function deserializeNotation(n: Partial<Notation>): Notation {
     tieTo: n.tieTo ? String(n.tieTo) : null,
     beatFrac: typeof n.beatFrac === "number" && n.beatFrac > 0 ? n.beatFrac : undefined,
     graceNotes: Array.isArray(n.graceNotes) ? n.graceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0, ...(g.accidental === "♯" || g.accidental === "♭" ? { accidental: g.accidental } : {}), ...(g.mordent !== undefined ? { mordent: g.mordent } : {}) })) : undefined,
+    postGraceNotes: Array.isArray(n.postGraceNotes) ? n.postGraceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0, ...(g.accidental === "♯" || g.accidental === "♭" ? { accidental: g.accidental } : {}), ...(g.mordent !== undefined ? { mordent: g.mordent } : {}) })) : undefined,
     technique: n.technique && typeof n.technique === "object" ? { ...n.technique } : undefined,
     volta: n.volta ? String(n.volta) : undefined,
     ...(n.dynamic ? { dynamic: n.dynamic } : {}),

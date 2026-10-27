@@ -50,6 +50,9 @@ export function toDsl(score: Score): string {
         + (allDecorators.length ? `{${allDecorators.join(",")}}` : "");
       const beats = n.beatFrac ?? 1 / 2 ** Math.min(3, n.underline);
       token += `:${fmtBeats(beats)}/${n.underline}`;
+      if (n.postGraceNotes?.length) {
+        token += `<${n.postGraceNotes.map(g => (g.accidental ?? "").replace("♯", "#").replace("♭", "b") + g.note + "^".repeat(Math.max(0, g.octave)) + ",".repeat(Math.max(0, -g.octave)) + (g.mordent ? "{w}" : "")).join("")}>`;
+      }
       if (n.tieTo && !tieDone.has(n.key)) {
         token += "~";
         tieDone.add(n.tieTo);
