@@ -5,7 +5,7 @@
  */
 
 import { EXTEND, isPitchable } from "./model.ts";
-import type { Notation, Score } from "./model.ts";
+import type { Notation, Paragraph, Score } from "./model.ts";
 
 /** 唱名 → 半音级（同 transpose 表，独立声明避免循环依赖） */
 const DIGIT_TO_LEVEL: Record<string, number> = { "1": 0, "2": 2, "3": 4, "4": 5, "5": 7, "6": 9, "7": 11 };
@@ -106,6 +106,27 @@ export function noteBeats(n: { underline: number; dotted: boolean; beatFrac?: nu
   return beats;
 }
 
+// 提示声部只占共享时间，不发声；resumeKey 显式指定主旋律恢复点。
+function paragraphTiming(para: Paragraph): { starts: number[]; mainEnd: number; end: number } {
+  const layers = para.cueLayers as (NonNullable<Paragraph["cueLayers"]>[number] & { resumeKey?: string })[] | undefined;
+  let elapsed = 0;
+  const starts = para.notations.map(n => {
+    for (const layer of layers ?? []) {
+      if (layer.resumeKey === n.key && layer.timelineBeats !== undefined) {
+        elapsed += Math.max(0, layer.timelineBeats - elapsed);
+      }
+    }
+    const start = elapsed;
+    if (n.note === "0" || n.note === EXTEND || isPitchable(n)) elapsed += noteBeats(n);
+    return start;
+  });
+  return {
+    starts,
+    mainEnd: elapsed,
+    end: Math.max(elapsed, ...(layers ?? []).map(layer => layer.timelineBeats ?? 0)),
+  };
+}
+
 /** 把整份乐谱编译成播放事件流；休止符保留时长与光标位置，midi 为 null。同音高连音线合并为一个持续音。 */
 export function compileEvents(score: Score): PlayEvent[] {
   const events: PlayEvent[] = [];
@@ -113,10 +134,13 @@ export function compileEvents(score: Score): PlayEvent[] {
   const midiBase = toneToMidiBase(score.tone);
   let t = 0;
   score.paragraphs.forEach((para, paraIdx) => {
+    const paragraphStart = t;
+    const timing = paragraphTiming(para);
     // 已被前面连音合并的符号不再发声（光标事件已在合并时补发）
     const merged = new Set<Notation>();
     para.notations.forEach((n, idx) => {
       if (merged.has(n)) return;
+      t = paragraphStart + timing.starts[idx] * secPerBeat;
       if (n.note === "0") {
         // 静音事件保留尾部休止时长，并让播放光标经过休止符。
         const duration = noteBeats(n) * secPerBeat;
@@ -141,18 +165,27 @@ export function compileEvents(score: Score): PlayEvent[] {
           beats += noteBeats(next);
           cursor = next;
         }
-        // 演奏法修饰时值系数：顿音/跳音(▾)短促发声(约40%)；保持音(⌒)饱满发声(约98%)；延长音(𝄐)自然延续
+        // 普通延音线接续最后一个连音后继；小节线不截断延音，休止符和新音高截断。
+        for (let nextIdx = para.notations.indexOf(cursor!) + 1; nextIdx < para.notations.length; nextIdx += 1) {
+          const next = para.notations[nextIdx];
+          if (next.note === "0" || isPitchable(next)) break;
+          if (next.note !== EXTEND || merged.has(next)) continue;
+          consumed.push(next);
+          merged.add(next);
+          beats += noteBeats(next);
+        }
+        // 演奏法修饰时值系数：顿音/跳音(▾/▼)短促发声(约40%)；保持音(⌒)饱满发声(约98%)；延长音(𝄐)自然延续
         let durFactor = 0.92;
         if (n.topDecorators && n.topDecorators.length > 0) {
-          if (n.topDecorators.includes("▾")) durFactor = 0.45;
+          if (n.topDecorators.includes("▾") || n.topDecorators.includes("▼")) durFactor = 0.45;
           else if (n.topDecorators.includes("⌒")) durFactor = 0.98;
         }
         events.push({ start: t, duration: beats * secPerBeat * durFactor, midi, index: idx, paragraph: paraIdx });
         t += beats * secPerBeat;
-        // 被合并的连音后继不发新音，但保留光标经过的位置
+        // 被合并的后继不发新音，但在各自起点保留原符号下标供光标经过。
         for (const used of consumed) {
           const usedIdx = para.notations.indexOf(used);
-          events.push({ start: t, duration: 0, midi: null, index: usedIdx, paragraph: paraIdx });
+          events.push({ start: paragraphStart + timing.starts[usedIdx] * secPerBeat, duration: noteBeats(used) * secPerBeat, midi: null, index: usedIdx, paragraph: paraIdx });
         }
       } else if (n.note === EXTEND) {
         // 延音线无声，只推进时间（自成一拍，或继承前一音 beatFrac 语义——延音线 beatFrac 恒 1）
@@ -160,6 +193,14 @@ export function compileEvents(score: Score): PlayEvent[] {
       }
       // 小节线不占时值
     });
+    if (timing.end > timing.mainEnd) {
+      events.push({
+        start: paragraphStart + timing.mainEnd * secPerBeat,
+        duration: (timing.end - timing.mainEnd) * secPerBeat,
+        midi: null, index: Math.max(0, para.notations.length - 1), paragraph: paraIdx,
+      });
+    }
+    t = paragraphStart + timing.end * secPerBeat;
   });
   return events;
 }
@@ -175,14 +216,12 @@ export function timeBefore(score: Score, paragraph: number, itemIndex: number): 
   const secPerBeat = beatSeconds(score.speed);
   let t = 0;
   for (let p = 0; p < paragraph && p < score.paragraphs.length; p += 1) {
-    for (const n of score.paragraphs[p].notations) t += noteBeats(n) * secPerBeat;
+    t += paragraphTiming(score.paragraphs[p]).end * secPerBeat;
   }
   const para = score.paragraphs[paragraph];
   if (!para) return t;
-  for (let i = 0; i < itemIndex && i < para.notations.length; i += 1) {
-    t += noteBeats(para.notations[i]) * secPerBeat;
-  }
-  return t;
+  const timing = paragraphTiming(para);
+  return t + (timing.starts[Math.max(0, itemIndex)] ?? timing.end) * secPerBeat;
 }
 
 /** 播放器状态回调 */

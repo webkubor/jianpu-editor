@@ -309,7 +309,7 @@
     {
       "paragraph": 10,
       "bar": 0,
-      "beats": 1,
+      "beats": 0.5,
       "expected": 2
     }
   ]

@@ -13,6 +13,45 @@ export function serializeScore(score: Score): string {
   return JSON.stringify({ ...score, schema: SCHEMA, version: VERSION });
 }
 
+/** 主旋律与提示声部共用符号结构校验及全谱键唯一性检查。 */
+function validateNotation(value: unknown, keys: Set<string>): boolean {
+  const n = value as Partial<Notation> | null;
+  if (!n || !["0", "1", "2", "3", "4", "5", "6", "7", "─", "│", "‖", "||:", ":||"].includes(n.note ?? "")) return false;
+  if (n.key !== undefined) {
+    if (typeof n.key !== "string" || !n.key || keys.has(n.key)) return false;
+    keys.add(n.key);
+  }
+  if (n.dynamic !== undefined && !["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(n.dynamic)) return false;
+  if (n.octave !== undefined && !Number.isSafeInteger(n.octave)) return false;
+  if (n.underline !== undefined && (!Number.isSafeInteger(n.underline) || n.underline < 0)) return false;
+  if (n.beatFrac !== undefined && !(typeof n.beatFrac === "number" && Number.isFinite(n.beatFrac) && n.beatFrac > 0)) return false;
+  if (n.prefixAccidentals !== undefined && (!Array.isArray(n.prefixAccidentals) ||
+    !n.prefixAccidentals.every((value: unknown) => value === "♯" || value === "♭"))) return false;
+  if (n.topDecorators !== undefined && (!Array.isArray(n.topDecorators) ||
+    !n.topDecorators.every((value: unknown) => typeof value === "string"))) return false;
+  return true;
+}
+
+/** 主旋律与提示声部共用解码，完整保留符号修饰。 */
+function deserializeNotation(n: Partial<Notation>): Notation {
+  return {
+    key: String(n.key ?? `n_${Math.random()}`),
+    note: n.note ?? "1",
+    octave: Number(n.octave) || 0,
+    dotted: Boolean(n.dotted),
+    underline: Number(n.underline) || 0,
+    breakUnderline: Boolean(n.breakUnderline),
+    prefixAccidentals: Array.isArray(n.prefixAccidentals) ? n.prefixAccidentals : [],
+    topDecorators: Array.isArray(n.topDecorators) ? n.topDecorators : [],
+    tieTo: n.tieTo ? String(n.tieTo) : null,
+    beatFrac: typeof n.beatFrac === "number" && n.beatFrac > 0 ? n.beatFrac : undefined,
+    graceNotes: Array.isArray(n.graceNotes) ? n.graceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0, ...(g.accidental === "♯" || g.accidental === "♭" ? { accidental: g.accidental } : {}) })) : undefined,
+    technique: n.technique && typeof n.technique === "object" ? { ...n.technique } : undefined,
+    volta: n.volta ? String(n.volta) : undefined,
+    ...(n.dynamic ? { dynamic: n.dynamic } : {}),
+  };
+}
+
 /** 从 JSON 反序列化；带最小结构校验，非法返回 null */
 export function deserializeScore(json: string): Score | null {
   try {
@@ -39,20 +78,17 @@ export function deserializeScore(json: string): Score | null {
             (span.label !== undefined && typeof span.label !== "string")) return null;
         }
       }
-      for (const n of paragraph.notations) {
-        if (!n || !["0", "1", "2", "3", "4", "5", "6", "7", "─", "│", "‖", "||:", ":||"].includes(n.note)) return null;
-        if (n.key !== undefined) {
-          if (typeof n.key !== "string" || !n.key || keys.has(n.key)) return null;
-          keys.add(n.key);
+      if (!paragraph.notations.every((n: unknown) => validateNotation(n, keys))) return null;
+      if (paragraph.cueLayers !== undefined) {
+        if (!Array.isArray(paragraph.cueLayers)) return null;
+        for (const layer of paragraph.cueLayers) {
+          if (!layer || typeof layer.label !== "string" ||
+            (layer.resumeKey !== undefined && (typeof layer.resumeKey !== "string" || !paragraph.notations.some((n: Notation) => n.key === layer.resumeKey))) ||
+            !(typeof layer.startBeat === "number" && Number.isFinite(layer.startBeat) && layer.startBeat >= 0) ||
+            (layer.timelineBeats !== undefined && !(typeof layer.timelineBeats === "number" &&
+              Number.isFinite(layer.timelineBeats) && layer.timelineBeats > 0)) ||
+            !Array.isArray(layer.notations) || !layer.notations.every((n: unknown) => validateNotation(n, keys))) return null;
         }
-        if (n.dynamic !== undefined && !["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(n.dynamic)) return null;
-        if (n.octave !== undefined && !Number.isSafeInteger(n.octave)) return null;
-        if (n.underline !== undefined && (!Number.isSafeInteger(n.underline) || n.underline < 0)) return null;
-        if (n.beatFrac !== undefined && !(typeof n.beatFrac === "number" && Number.isFinite(n.beatFrac) && n.beatFrac > 0)) return null;
-        if (n.prefixAccidentals !== undefined && (!Array.isArray(n.prefixAccidentals) ||
-          !n.prefixAccidentals.every((value: unknown) => value === "♯" || value === "♭"))) return null;
-        if (n.topDecorators !== undefined && (!Array.isArray(n.topDecorators) ||
-          !n.topDecorators.every((value: unknown) => typeof value === "string"))) return null;
       }
     }
     const score: Score = {
@@ -70,22 +106,13 @@ export function deserializeScore(json: string): Score | null {
         ...(p.spans !== undefined ? { spans: p.spans.map(span => ({ ...span })) } : {}),
         alignJustify: Boolean(p.alignJustify ?? true),
         lyrics: Array.isArray(p.lyrics) ? p.lyrics.map(String) : [],
-        notations: (p.notations ?? []).map((n: Partial<Notation>) => ({
-          key: String(n.key ?? `n_${Math.random()}`),
-          note: String(n.note ?? "1"),
-          octave: Number(n.octave) || 0,
-          dotted: Boolean(n.dotted),
-          underline: Number(n.underline) || 0,
-          breakUnderline: Boolean(n.breakUnderline),
-          prefixAccidentals: Array.isArray(n.prefixAccidentals) ? n.prefixAccidentals : [],
-          topDecorators: Array.isArray(n.topDecorators) ? n.topDecorators : [],
-          tieTo: n.tieTo ? String(n.tieTo) : null,
-          beatFrac: typeof n.beatFrac === "number" && n.beatFrac > 0 ? n.beatFrac : undefined,
-          graceNotes: Array.isArray(n.graceNotes) ? n.graceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0, ...(g.accidental === "♯" || g.accidental === "♭" ? { accidental: g.accidental } : {}) })) : undefined,
-          technique: n.technique && typeof n.technique === "object" ? { ...n.technique } : undefined,
-          volta: n.volta ? String(n.volta) : undefined,
-          ...(n.dynamic ? { dynamic: n.dynamic } : {}),
-        })),
+        notations: (p.notations ?? []).map(deserializeNotation),
+        ...(p.cueLayers !== undefined ? { cueLayers: p.cueLayers.map(layer => ({
+          label: layer.label,
+          startBeat: layer.startBeat,
+          ...(layer.resumeKey !== undefined ? { resumeKey: layer.resumeKey } : {}),          notations: layer.notations.map(deserializeNotation),
+          ...(layer.timelineBeats !== undefined ? { timelineBeats: layer.timelineBeats } : {}),
+        })) } : {}),
       })),
     };
     return score;

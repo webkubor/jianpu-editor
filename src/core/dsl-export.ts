@@ -63,6 +63,12 @@ export function toDsl(score: Score): string {
       })))}`);
     }
     if (words.some(Boolean)) lines.push(`[词:${words.map((w) => w || "-").join(" ")}]`);
+    for (const layer of para.cueLayers ?? []) {
+      const cueDsl = toDsl({ ...score, paragraphs: [{ ...para, heading: undefined, meter: undefined,
+        freeTime: undefined, spans: undefined, cueLayers: undefined, lyrics: [], notations: layer.notations }] });
+      lines.push(`@cue ${JSON.stringify({ label: layer.label, startBeat: layer.startBeat, timelineBeats: layer.timelineBeats,
+        ...(layer.resumeKey ? { resume: para.notations.findIndex(n => n.key === layer.resumeKey) } : {}), dsl: cueDsl })}`);
+    }
   }
   return lines.join("\n");
 }

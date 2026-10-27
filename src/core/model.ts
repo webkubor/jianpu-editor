@@ -109,6 +109,17 @@ export interface Paragraph {
   freeTime?: boolean;
   /** 乐句弧、力度发夹、持续颤音与连音组 */
   spans?: MusicSpan[];
+  /** 独立提示声部，与主旋律共享时间轴，不追加到主旋律符号中 */
+  cueLayers?: {
+    label: string;
+    /** 相对段落起点的拍数，可为零 */
+    startBeat: number;
+    notations: Notation[];
+    /** 所共享小节跨度的时长（拍），提供时必须为正数 */
+    timelineBeats?: number;
+    /** 提示段结束后恢复的主音；该音前保留共享时间，不补造谱面休止 */
+    resumeKey?: string;
+  }[];
   /** 两端对齐撑满页宽 */
   alignJustify: boolean;
   /** 段落左侧歌词（简谱常用上方/下方歌词行，此处按下标对应） */

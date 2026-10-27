@@ -402,6 +402,20 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
   for (const raw of dsl.split(/\n/)) {
     const line = raw.trim();
     if (line === "") continue;
+    if (line.startsWith("@cue ")) {
+      const target = paras.at(-1);
+      const cue = JSON.parse(line.slice(5));
+      if (!target || !cue || typeof cue.label !== "string" || typeof cue.dsl !== "string" ||
+        !Number.isFinite(cue.startBeat) || cue.startBeat < 0 ||
+        (cue.resume !== undefined && (!Number.isInteger(cue.resume) || !target.notations[cue.resume])) ||
+        (cue.timelineBeats !== undefined && (!Number.isFinite(cue.timelineBeats) || cue.timelineBeats <= 0))) throw new SyntaxError("提示声部元数据有误");
+      target.cueLayers ??= [];
+      target.cueLayers.push({ label: cue.label, startBeat: cue.startBeat,
+        notations: compileLine(cue.dsl).notations,
+        ...(cue.resume !== undefined ? { resumeKey: target.notations[cue.resume].key } : {}),
+        ...(cue.timelineBeats !== undefined ? { timelineBeats: cue.timelineBeats } : {}) });
+      continue;
+    }
     if (line.startsWith("@spans ")) {
       const target = paras.at(-1);
       const spans: unknown = JSON.parse(line.slice(7));

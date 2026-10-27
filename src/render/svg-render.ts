@@ -11,6 +11,7 @@ import { BAR, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, isPitchable } from "
 import type { Notation, Paragraph, Score } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
 import { renderMusicSpans } from "./music-spans.ts";
+import { renderCueLayer } from "./cue-layer.ts";
 import { A4_PAGE, paginateScore, type ScorePage } from "./pagination.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
@@ -635,7 +636,15 @@ export function renderScorePagesSvgs(
   if (score.paragraphs.every(p => p.notations.length === 0)) {
     return [renderScoreSvg(score, selectedKey, cursorPos)];
   }
-  return pages.map(p => renderPageSvg(p, pages.length, score, selectedKey, cursorPos));
+  const svgs = pages.map(p => renderPageSvg(p, pages.length, score, selectedKey, cursorPos));
+  // 提示层作为独立附录页导出；不得默默丢失括号内的记谱。
+  score.paragraphs.forEach(para => (para.cueLayers ?? []).forEach(layer => {
+    const host = document.createElement("div");
+    renderCueLayer(host, layer);
+    const cueSvg = host.querySelector("svg");
+    if (cueSvg) svgs.push(cueSvg);
+  }));
+  return svgs;
 }
 export function renderScorePages(
   container: HTMLElement,
@@ -663,6 +672,21 @@ export function renderScorePages(
     svgs.push(svg);
   });
 
+  const cues = score.paragraphs.flatMap((para, index) => (para.cueLayers ?? []).map(layer => ({ layer, index })));
+  if (cues.length) {
+    const appendix = document.createElement("section");
+    appendix.className = "page-card-wrapper cue-appendix";
+    const heading = document.createElement("h2");
+    heading.textContent = "括号提示声部（与正文共享时间线）";
+    appendix.appendChild(heading);
+    cues.forEach(({ layer, index }) => {
+      const item = document.createElement("div");
+      item.dataset.paragraph = String(index);
+      renderCueLayer(item, layer);
+      appendix.appendChild(item);
+    });
+    container.appendChild(appendix);
+  }
   return svgs;
 }
 

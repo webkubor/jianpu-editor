@@ -6,6 +6,7 @@ import { page2Rows } from "./mumin-page2.ts";
 import { page3Rows } from "./mumin-page3.ts";
 import { page4Rows } from "./mumin-page4.ts";
 import { annotateMuminSpans } from "./mumin-spans.ts";
+import { attachMuminCues } from "./mumin-cues.ts";
 
 export function createMuminDraft() {
   const pages = [page1Rows, page2Rows, page3Rows, page4Rows];
@@ -28,6 +29,7 @@ export function createMuminDraft() {
     }
     para.meter = [...activeMeter];
     para.spans = annotateMuminSpans(pageIndex + 1, row.sourceRow, para);
+    attachMuminCues(pageIndex + 1, row.sourceRow, para);
     // 原图明确的段首力度；局部力度在逐音记录中继续核对。
     const dynamic = pageIndex === 0 && row.sourceRow === 1 ? "pp" :
       pageIndex === 0 && row.sourceRow === 5 && !para.freeTime ? "mf" :
