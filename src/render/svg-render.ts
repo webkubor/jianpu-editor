@@ -263,15 +263,13 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       techTopY -= 12;
     }
     if (tech.mordent) {
-      group.appendChild(el("text", {
-        x: mainX,
-        y: techTopY,
-        "text-anchor": "middle",
-        "dominant-baseline": "middle",
-        "font-size": 13,
-        "font-family": "Times New Roman, serif",
-        class: "wind-tech-mordent",
-      }, "w"));
+      // 波音用矢量折线，避免文字w在不同字体下变成普通字母。
+      const wave = el("path", {
+        d: `M ${mainX - 8} ${techTopY + 2} l 3 -5 l 4 5 l 4 -5 l 4 5 l 3 -5`,
+        stroke: "currentColor", "stroke-width": 1.6, fill: "none",
+        "stroke-linejoin": "miter", class: "wind-tech-mordent", "aria-label": "波音",
+      });
+      group.appendChild(wave);
       techTopY -= 11;
     }
     if (tech.appoggiatura) {

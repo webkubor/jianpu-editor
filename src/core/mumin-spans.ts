@@ -74,6 +74,53 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
     // 主图引子尾声的楔形由主音1下方收向低5；慢板同号系统不能套用。
     add("diminuendo", 2, 3);
   }
+  if (page === 1 && [6, 7, 8].includes(sourceRow) && !para.freeTime) {
+    const slur = (start: number, pitches: string) => {
+      // 编译后主音索引含小节线、不含倚音；逐音核对唱名与八度，防旋律修改后错绑。
+      const expected = pitches.split(" ");
+      const actual = para.notations.slice(start, start + expected.length);
+      if (actual.length === expected.length && actual.every((n, i) => `${n.note}/${n.octave}` === expected[i])) {
+        add("slur", start, start + expected.length - 1);
+      }
+    };
+    if (sourceRow === 6) {
+      // 主图第6系统第1小节：3.235、121低6低5 各有无箭头短弧，终点分别为5、低5。
+      slur(1, "3/0 2/0 3/0 5/0");
+      slur(5, "1/0 2/0 1/0 6/-1 5/-1");
+      // 同小节上层圆弧从附点低6至末尾带倚音2的低3；微型倚音不另占端点。
+      slur(10, "6/-1 5/-1 3/-1 3/-1");
+      // 第2小节末上层圆弧从带61倚音的长音6至高1，覆盖其后的6.56高1。
+      slur(21, "6/0 6/0 5/0 6/0 1/1");
+      // 第3小节首弧从带5倚音的3至高1；随后6.5356、2.3各有普通圆弧，叉号独立于弧端。
+      slur(27, "3/0 6/0 5/0 6/0 1/1");
+      slur(32, "6/0 5/0 3/0 5/0 6/0");
+      slur(37, "2/0 3/0");
+    }
+    if (sourceRow === 7) {
+      // 主图第7系统第1小节低5→低6、2→3均为短圆弧；后者上方叉号不是箭头。
+      slur(1, "5/-1 6/-1");
+      slur(3, "2/0 3/0");
+      // 第2小节2.→3的弧线可辨；行首1.→低6与低5→低3带箭头，不作普通弧。
+      slur(11, "2/0 3/0");
+      // 第3小节6.5356上层圆弧以6为两端；不把波音及末音叉号作为箭头。
+      slur(26, "6/0 5/0 3/0 5/0 6/0");
+    }
+    if (sourceRow === 8) {
+      // 主图第8系统第1小节6.561、2.3212的两条圆弧，端点分别为低6→1、2→2。
+      slur(2, "6/-1 5/-1 6/-1 1/0");
+      slur(6, "2/0 3/0 2/0 1/0 2/0");
+      // 同小节末带倚音2的主音3→5上方短弧，左端小字2不计主音索引。
+      slur(12, "3/0 5/0");
+      // 第2小节低556、23(3)51各有圆弧；T/叉号与普通弧线分开辨认。
+      slur(15, "5/-1 5/-1 6/-1");
+      slur(18, "2/0 3/0 5/0 1/0");
+      // 第3小节依次为低6→低5、(5)低6→1、2→1、2→3；低5后的长音低6不在首弧内。
+      slur(25, "6/-1 5/-1");
+      slur(28, "6/-1 1/0");
+      slur(30, "2/0 1/0");
+      slur(33, "2/0 3/0");
+    }
+  }
   if (page === 2 && [5, 6, 7, 8, 9].includes(sourceRow)) {
     const bars: number[][] = [[]];
     para.notations.forEach((note, index) => {
