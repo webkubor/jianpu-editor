@@ -47,5 +47,17 @@ export function createMuminDraft() {
     review.push({ page: pageIndex + 1, row: row.sourceRow, uncertainties: row.uncertainties });
     return para;
   }));
+  // 原图第一页明确跨系统的三条长弧；按原图行号找段，避免慢板拆段造成偏移。
+  const connect = (fromRow: number, fromIndex: number, toRow: number, toIndex: number) => {
+    const fromPara = review.findIndex(r => r.page === 1 && r.row === fromRow);
+    const toPara = review.findIndex(r => r.page === 1 && r.row === toRow);
+    const from = score.paragraphs[fromPara], to = score.paragraphs[toPara];
+    if (!from?.notations[fromIndex] || !to?.notations[toIndex]) return;
+    from.spans ??= [];
+    from.spans.push({ kind: "slur", startKey: from.notations[fromIndex].key, endKey: to.notations[toIndex].key });
+  };
+  connect(2, 23, 3, 4);
+  connect(3, 16, 4, 27);
+  connect(4, 29, 5, 1);
   return { score, review };
 }

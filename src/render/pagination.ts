@@ -64,6 +64,9 @@ export function paginateScore<G extends { n: Notation; width: number; core: numb
 ): ScorePage[] {
   const contentWidth = A4_PAGE.width - A4_PAGE.marginLeft - A4_PAGE.marginRight;
   const allRows: LayoutRow[] = [];
+  const allNotes = score.paragraphs.flatMap(p => p.notations);
+  const noteOrder = new Map(allNotes.map((n, index) => [n.key, index]));
+  const allSpans = score.paragraphs.flatMap(p => p.spans ?? []);
 
   score.paragraphs.forEach((para, paraIndex) => {
     const glyphs: G[] = para.notations.map(measureWidthFn);
@@ -77,12 +80,19 @@ export function paginateScore<G extends { n: Notation; width: number; core: numb
     // 只有提示声部的段落也保留一个锚点行，避免空正文吞掉提示内容。
     if (!splitRows.length && para.cueLayers?.length) splitRows.push([]);
     const hasLyrics = para.lyrics.length > 0;
+    const first = noteOrder.get(para.notations[0]?.key) ?? -1;
+    const last = noteOrder.get(para.notations.at(-1)?.key ?? "") ?? -1;
+    const incomingSpans = allSpans.filter(span => {
+      const from = noteOrder.get(span.startKey) ?? -1;
+      const to = noteOrder.get(span.endKey) ?? -1;
+      return from < first && to >= first && from >= 0 && last >= 0;
+    }).length;
     splitRows.forEach((rowGlyphs, rowInPara) => {
       const isLastRowOfPara = rowInPara === splitRows.length - 1;
       const rowHeight = estimateRowHeight(rowGlyphs, hasLyrics) +
         (rowInPara === 0 && (para.heading || para.meter || para.freeTime)
           ? 30 + Math.min(100, (para.spans?.filter(s => !["crescendo", "diminuendo"].includes(s.kind)).length ?? 0) * 14) : 0) +
-        Math.min(120, (para.spans?.length ?? 0) * 18) +
+        Math.min(120, ((para.spans?.length ?? 0) + incomingSpans) * 18) +
         (isLastRowOfPara ? (para.cueLayers?.length ?? 0) * (INLINE_CUE.svgHeight + INLINE_CUE.metadataHeight) : 0);
       allRows.push({
         paraIndex,

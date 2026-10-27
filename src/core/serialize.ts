@@ -61,6 +61,14 @@ export function deserializeScore(json: string): Score | null {
     if (d.speed !== undefined && !(typeof d.speed === "number" && Number.isFinite(d.speed) && d.speed > 0)) return null;
     if (d.beat !== undefined && (!Array.isArray(d.beat) || d.beat.length !== 2 ||
       !d.beat.every((value: unknown) => typeof value === "number" && Number.isInteger(value) && value > 0))) return null;
+    // 先收集全谱主旋律端点；不要复用后续主旋律/提示声部的重复键校验集合。
+    const mainNoteKeys = new Set<string>();
+    for (const paragraph of d.paragraphs) {
+      if (!paragraph || !Array.isArray(paragraph.notations)) return null;
+      for (const notation of paragraph.notations) {
+        if (notation && typeof notation.key === "string") mainNoteKeys.add(notation.key);
+      }
+    }
     const keys = new Set<string>();
     for (const paragraph of d.paragraphs) {
       if (!paragraph || !Array.isArray(paragraph.notations)) return null;
@@ -74,7 +82,7 @@ export function deserializeScore(json: string): Score | null {
         for (const span of paragraph.spans) {
           if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
             typeof span.startKey !== "string" || typeof span.endKey !== "string" ||
-            !noteKeys.has(span.startKey) || !noteKeys.has(span.endKey) ||
+            !noteKeys.has(span.startKey) || !mainNoteKeys.has(span.endKey) ||
             (span.label !== undefined && typeof span.label !== "string")) return null;
         }
       }

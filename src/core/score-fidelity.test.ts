@@ -53,6 +53,16 @@ test("倚音临时变音和低八度在DSL/工程文件往返保留", () => {
   assert.deepEqual(deserializeScore(serializeScore(score))?.paragraphs[0].notations[0].graceNotes, expected);
 });
 
+test("跨段乐句弧在DSL与JSON往返保持两个段落端点", () => {
+  const score = compileScore("1  2\n3  5");
+  score.paragraphs[0].spans = [{ kind: "slur", startKey: score.paragraphs[0].notations[1].key, endKey: score.paragraphs[1].notations[1].key }];
+  for (const back of [compileScore(toDsl(score)), deserializeScore(serializeScore(score))]) {
+    assert.ok(back);
+    assert.equal(back.paragraphs[0].spans?.[0].startKey, back.paragraphs[0].notations[1].key);
+    assert.equal(back.paragraphs[0].spans?.[0].endKey, back.paragraphs[1].notations[1].key);
+  }
+});
+
 test("跨度对象在 DSL 和 JSON 中保留按音符定位", () => {
   const score = compileScore("1  2  3");
   const notes = score.paragraphs[0].notations;

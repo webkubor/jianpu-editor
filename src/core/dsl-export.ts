@@ -56,8 +56,9 @@ export function toDsl(score: Score): string {
       if (n.note !== "0") words.push(para.lyrics[words.length] ?? "");
     }
     lines.push(tokens.join("  "));
-    if (para.spans?.length) {
-      lines.push(`@spans ${JSON.stringify(para.spans.map(span => ({
+    const localSpans = para.spans?.filter(span => para.notations.some(n => n.key === span.endKey));
+    if (localSpans?.length) {
+      lines.push(`@spans ${JSON.stringify(localSpans.map(span => ({
         kind: span.kind, start: para.notations.findIndex(n => n.key === span.startKey),
         end: para.notations.findIndex(n => n.key === span.endKey), label: span.label,
       })))}`);
@@ -70,5 +71,11 @@ export function toDsl(score: Score): string {
         ...(layer.resumeKey ? { resume: para.notations.findIndex(n => n.key === layer.resumeKey) } : {}), dsl: cueDsl })}`);
     }
   }
+  const addresses = new Map(score.paragraphs.flatMap((para, paragraph) => para.notations.map((n, index) =>
+    [n.key, [paragraph, index] as [number, number]] as const)));
+  const crossSpans = score.paragraphs.flatMap(para => (para.spans ?? [])
+    .filter(span => !para.notations.some(n => n.key === span.endKey))
+    .map(span => ({ kind: span.kind, start: addresses.get(span.startKey), end: addresses.get(span.endKey), label: span.label })));
+  if (crossSpans.length) lines.push(`@cross-spans ${JSON.stringify(crossSpans)}`);
   return lines.join("\n");
 }

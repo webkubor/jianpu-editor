@@ -472,6 +472,9 @@ export function renderPageSvg(
 
   let yOffset = page.pageIndex === 0 ? 128 : A4_PAGE.marginTop;
   const contentWidth = A4_PAGE.width - A4_PAGE.marginLeft - A4_PAGE.marginRight;
+  const notations = score.paragraphs.flatMap(paragraph => paragraph.notations);
+  const notationOrder = new Map(notations.map((notation, index) => [notation.key, index]));
+  const spans = score.paragraphs.flatMap(paragraph => paragraph.spans ?? []);
 
   for (const r of page.rows) {
     const para = score.paragraphs[r.paraIndex];
@@ -595,7 +598,7 @@ export function renderPageSvg(
       }
     }
 
-    if (para.spans?.length) {
+    if (spans.length) {
       const positions = new Map<string, { x: number; top: number; bottom: number }>();
       rowGlyphs.forEach((g, index) => {
         const techCount = Object.values(g.n.technique ?? {}).filter(Boolean).length + g.n.topDecorators.length;
@@ -605,17 +608,34 @@ export function renderPageSvg(
           bottom: Math.max(g.n.dynamic ? 58 : 28, 22 + g.n.underline * 5 + Math.max(0, -g.n.octave) * 6, para.lyrics.length ? 44 : 0),
         });
       });
-      // 在每个可见行切分跨度，避免跨行对象因缺少端点而消失。
-      const visibleSpans = para.spans.flatMap(span => {
-        const start = para.notations.findIndex(n => n.key === span.startKey);
-        const end = para.notations.findIndex(n => n.key === span.endKey);
-        if (!rowGlyphs.length) return [];
-        const first = para.notations.indexOf(rowGlyphs[0].n);
-        const last = para.notations.indexOf(rowGlyphs[rowGlyphs.length - 1].n);
-        if (start < 0 || end < 0 || first < 0 || last < 0) return [];
-        const left = Math.max(Math.min(start, end), first);
-        const right = Math.min(Math.max(start, end), last);
-        return left < right ? [{ ...span, startKey: para.notations[left].key, endKey: para.notations[right].key }] : [];
+      // 全谱顺序与当前视觉行求交，传入同一批跨度以保留同行避让通道。
+      const visibleSpans = spans.flatMap(span => {
+        const start = notationOrder.get(span.startKey);
+        const end = notationOrder.get(span.endKey);
+        if (!rowGlyphs.length || start === undefined || end === undefined || start === end) return [];
+        const first = notationOrder.get(rowGlyphs[0].n.key)!;
+        const last = notationOrder.get(rowGlyphs[rowGlyphs.length - 1].n.key)!;
+        const low = Math.min(start, end);
+        const high = Math.max(start, end);
+        const left = Math.max(low, first);
+        const right = Math.min(high, last);
+        if (left > right) return [];
+        let startKey = notations[left].key;
+        let endKey = notations[right].key;
+        // 单音交集也有续接段：使用稳定的行边界锚点，避免零宽跨度消失。
+        if (left === right) {
+          const position = positions.get(startKey)!;
+          const glyph = rowGlyphs.find(g => g.n.key === startKey)!;
+          if (low < first) {
+            startKey += ":span-before";
+            positions.set(startKey, { ...position, x: position.x - glyph.width / 2 });
+          }
+          if (high > last) {
+            endKey += ":span-after";
+            positions.set(endKey, { ...position, x: position.x + glyph.width / 2 });
+          }
+        }
+        return [{ ...span, startKey, endKey }];
       });
       renderMusicSpans(row, visibleSpans, positions);
     }

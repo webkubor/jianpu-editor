@@ -399,9 +399,21 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
   const score = createScore(base);
   const paras: Paragraph[] = [];
   let pendingSection: Partial<Pick<Paragraph, "heading" | "meter" | "freeTime">> | undefined;
+  const crossSpans: { kind: NonNullable<Paragraph["spans"]>[number]["kind"]; start: [number, number]; end: [number, number]; label?: string }[] = [];
   for (const raw of dsl.split(/\n/)) {
     const line = raw.trim();
     if (line === "") continue;
+    if (line.startsWith("@cross-spans ")) {
+      const value = JSON.parse(line.slice(13));
+      if (!Array.isArray(value)) throw new SyntaxError("跨段跨度须为数组");
+      for (const span of value) {
+        if (!span || !["slur", "crescendo", "diminuendo", "trill", "tuplet"].includes(span.kind) ||
+          ![span.start, span.end].every(a => Array.isArray(a) && a.length === 2 && a.every(v => Number.isInteger(v) && v >= 0)) ||
+          (span.label !== undefined && typeof span.label !== "string")) throw new SyntaxError("跨段跨度元数据有误");
+        crossSpans.push(span);
+      }
+      continue;
+    }
     if (line.startsWith("@cue ")) {
       const target = paras.at(-1);
       const cue = JSON.parse(line.slice(5));
@@ -463,6 +475,14 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
     if (pendingSection) Object.assign(paragraph, pendingSection);
     pendingSection = undefined;
     paras.push(paragraph);
+  }
+  for (const span of crossSpans) {
+    const from = paras[span.start[0]]?.notations[span.start[1]];
+    const to = paras[span.end[0]]?.notations[span.end[1]];
+    if (!from || !to) throw new SyntaxError("跨段跨度端点超出乐谱");
+    const owner = paras[span.start[0]];
+    owner.spans ??= [];
+    owner.spans.push({ kind: span.kind, startKey: from.key, endKey: to.key, ...(span.label ? { label: span.label } : {}) });
   }
   score.paragraphs = paras;
   return score;
