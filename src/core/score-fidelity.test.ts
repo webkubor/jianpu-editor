@@ -19,7 +19,11 @@ test("牧民新歌工作稿保留原图定位、变拍和复杂连音组", () =>
   assert.deepEqual(validateScore(score), [{ paragraph: 10, bar: 0, beats: 0.5, expected: 2 }]);
   assert.equal(score.paragraphs[10].cueLayers?.[0].startBeat, 0.5);
   assert.equal(score.paragraphs[10].cueLayers?.[0].timelineBeats, 8);
-  assert.equal(score.paragraphs.filter(p => p.cueLayers?.length).length, 4);
+  assert.equal(score.paragraphs.filter(p => p.cueLayers?.length).length, 5);
+  const slowCue = score.paragraphs[5].cueLayers?.[0];
+  assert.equal(slowCue?.startBeat, 0);
+  assert.equal(slowCue?.timelineBeats, 8);
+  assert.equal(slowCue?.resumeKey, undefined);
 });
 
 test("倚音在高八度前缀后保留，技巧完整往返", () => {

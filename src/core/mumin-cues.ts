@@ -7,6 +7,11 @@ export function attachMuminCues(page: number, row: number, para: Paragraph): voi
     para.cueLayers = [{ label, startBeat, notations: compileLine(dsl).notations, timelineBeats,
       ...(resumeIndex !== undefined ? { resumeKey: para.notations[resumeIndex]?.key } : {}) }];
   };
+  if (page === 1 && row === 5 && !para.freeTime) {
+    // 首版慢板上方括号两小节：6.1、5.6均为附点八分+十六分；653、351均为十六分+十六分+八分。
+    add("慢板·上方两小节括号提示与主声部并行", 0,
+      "6,.:0.75/1 1:0.25/2 2:0.5/1 3:0.5/1 6:0.25/2 5:0.25/2 3:0.5/1 2:0.5/1 1:0.5/1 | 5,.:0.75/1 6,:0.25/2 3:0.25/2 5:0.25/2 1:0.5/1 6,:1/0 -:1/0 |", 8);
+  }
   if (page === 2 && row === 2) {
     // 首个主音6是八分；括号从同小节第半拍起，随后三小节继续。
     para.notations[0].beatFrac = 0.5;

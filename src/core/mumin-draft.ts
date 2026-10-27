@@ -36,7 +36,14 @@ export function createMuminDraft() {
       pageIndex === 1 && row.sourceRow === 5 ? "mf" :
       pageIndex === 2 && row.sourceRow === 1 ? "f" :
       pageIndex === 2 && (row.sourceRow === 2 || row.sourceRow === 3) ? "mp" : undefined;
-    if (dynamic && para.notations[0]) para.notations[0].dynamic = dynamic;
+    const firstPitch = para.notations.find(n => /^[1-7]$/.test(n.note));
+    if (dynamic && firstPitch) firstPitch.dynamic = dynamic;
+    if (pageIndex === 0 && row.sourceRow === 2 && para.notations[18]) para.notations[18].dynamic = "pp";
+    if (pageIndex === 0 && row.sourceRow === 3) {
+      if (para.notations[6]) para.notations[6].dynamic = "ppp";
+      if (para.notations[16]) para.notations[16].dynamic = "ff";
+    }
+    if (pageIndex === 0 && row.sourceRow === 4 && para.notations[27]) para.notations[27].dynamic = "mp";
     review.push({ page: pageIndex + 1, row: row.sourceRow, uncertainties: row.uncertainties });
     return para;
   }));
