@@ -128,11 +128,13 @@ test("playTone 与 midiOf：音高计算精确，全谱播放时不抢占", asyn
   p.playTone(60);
 });
 
-test("曲库示例均通过拍数校验；未核对的牧民新歌从正式曲库撤下", async () => {
+test("曲库示例均通过拍数校验；牧民新歌以两版交叉校对稿形式入库", async () => {
   const { EXAMPLES } = await import("./examples.ts");
   const { validateScore } = await import("./validate.ts");
-  assert.equal(EXAMPLES.length, 7);
-  assert.ok(!EXAMPLES.some(ex => ex.id === "flute-mumin"));
+  assert.equal(EXAMPLES.length, 8);
+  const mumin = EXAMPLES.find(ex => ex.id === "flute-mumin");
+  assert.ok(mumin, "重新录入的牧民新歌必须存在");
+  assert.ok(mumin.name.includes("校对稿"), "名称须保留校对稿状态");
   for (const ex of EXAMPLES) {
     assert.ok(ex.score.paragraphs.length > 0);
     assert.ok(ex.score.title.length > 0);

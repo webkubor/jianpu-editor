@@ -3,6 +3,7 @@
  */
 import type { Score } from "./model.ts";
 import { compileScore } from "./dsl.ts";
+import { createMuminDraft } from "./mumin-draft.ts";
 
 export interface ScoreExample {
   id: string;
@@ -38,6 +39,11 @@ export const EXAMPLES: ScoreExample[] = [
     ),
   },
 
+  {
+    id: "flute-mumin",
+    name: "🎋 牧民新歌 (两版网络图交叉录入 · 校对稿)",
+    score: createMuminDraft().score,
+  },
   {
     id: "flute-yangbian",
     name: "🎋 扬鞭催马运粮忙 (全篇大谱 · 梆笛快板 · 魏显忠)",

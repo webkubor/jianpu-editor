@@ -13,7 +13,7 @@ test("牧民新歌工作稿保留原图定位、变拍和复杂连音组", () =>
   assert.equal(score.paragraphs[0].notations[0].octave, -1);
   assert.equal(score.paragraphs[0].freeTime, true);
   assert.equal(review.filter(r => r.page === 1 && r.row === 5).length, 2);
-  assert.deepEqual(score.paragraphs[11].meter, [2, 4]);
+  assert.deepEqual(score.paragraphs[10].meter, [2, 4]);
   const labels = score.paragraphs.flatMap(p => p.spans ?? []).filter(s => s.kind === "tuplet").map(s => s.label);
   for (const label of ["3", "5", "6", "7", "9"]) assert.ok(labels.includes(label));
   // 主声部半拍+显式提示层首片段一拍半共同完成首个2/4小节。
