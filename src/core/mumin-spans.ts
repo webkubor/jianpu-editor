@@ -1,6 +1,6 @@
 /**
  * 《牧民新歌》逐图确认的视觉跨度；在 compileLine 后以主音索引绑定稳定 key。
- * 证据：原四页版 mumin1.png / mumin2.png / mumin4.png 为主，mumin-edition2-page1.png / page2.png 对照。
+ * 证据：原四页版 mumin1.png / mumin2.png / mumin3.png / mumin4.png 为主，mumin-edition2-page1.png / page2.png 对照。
  * 两版均为转载制谱，非认证原稿；仅补弧线、发夹、tr 延续线及连音组标签，不改音符或时值。
  */
 import type { MusicSpan, Paragraph } from "./model.ts";
@@ -174,6 +174,59 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       curve("slide", 24, "3/0 5/0");
     }
     if (sourceRow === 9) curve("slur", 0, "6/-1 ─/0 │/0 6/-1");
+  }
+  if (page === 3 && sourceRow >= 1 && sourceRow <= 9) {
+    const slur = (start: number, pitches: string) => {
+      // 主音索引含小节线及延音线、不含倚音；完整唱名和八度一致才绑定跨度。
+      const expected = pitches.split(" ");
+      const actual = para.notations.slice(start, start + expected.length);
+      if (actual.length === expected.length && actual.every((n, i) => `${n.note}/${n.octave}` === expected[i])) {
+        add("slur", start, start + expected.length - 1);
+      }
+    };
+    if (sourceRow === 1) {
+      // 第6小节6.56高1的无箭头圆弧；微型倚音的自带弧不另建跨度。
+      slur(17, "6/0 5/0 6/0 1/1");
+    }
+    if (sourceRow === 2) {
+      slur(1, "6/0 1/1");
+      slur(8, "3/0 5/0 │/0 6/0 5/0 6/0 1/1");
+      // 第5小节短弧从第一个3到6，不延至后面的高1。
+      slur(17, "3/0 5/0 6/0");
+      slur(23, "3/0 2/0");
+      slur(26, "1/0 ─/0 │/0 1/0");
+    }
+    if (sourceRow === 3) {
+      slur(1, "3/0 2/0 │/0 1/0");
+      // 第3小节2至下一小节首5；3上方沙漏与末端波音均不是箭头。
+      slur(8, "2/0 3/0 │/0 5/0");
+      slur(15, "3/0 5/0 6/0");
+    }
+    if (sourceRow === 4) {
+      slur(4, "3/-1 5/-1");
+      slur(9, "2/0 │/0 3/0 3/0 1/1");
+    }
+    if (sourceRow === 5) {
+      // 左侧主声部两小节相连；右侧括号提示声部没有占据这些主音索引。
+      slur(0, "1/0 ─/0 │/0 1/0");
+    }
+    if (sourceRow === 6) {
+      // 两条短弧均跨过波音后的回转音，落在随后第一个6／3；三角吐音不作箭头。
+      slur(16, "2/1 1/1 6/0");
+      slur(22, "6/0 5/0 3/0");
+    }
+    // 第7行只有倚音弧、波音和三角吐音，没有可独立确认的主音连奏弧或箭头。
+    if (sourceRow === 8) {
+      // 最后两小节两层普通弧：内弧高2→高2，外弧高2→高1；上方虚点线不冒充tr。
+      slur(31, "2/1 ─/0 │/0 2/1");
+      slur(31, "2/1 ─/0 │/0 2/1 1/1");
+    }
+    if (sourceRow === 9) {
+      // 马叫下方主声部四小节长音间的三条明确长弧；上方括号提示音与波浪线不作端点。
+      slur(0, "1/1 ─/0 │/0 1/1");
+      slur(3, "1/1 ─/0 │/0 6/0");
+      slur(6, "6/0 ─/0 │/0 6/0");
+    }
   }
   if (page === 4 && sourceRow === 2) {
     // 主图第四页第2系统、对照版第2页倒数第2系统：23→5、35→6、5→6、6→高2。

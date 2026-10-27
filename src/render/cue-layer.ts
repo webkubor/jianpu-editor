@@ -108,6 +108,11 @@ function drawNote(group: SVGGElement, note: Notation): void {
     octaveDots(group, 0, note.octave, -25, 11 + underlines * 4);
   }
   if (note.dotted) group.appendChild(svgElement(doc, "circle", { cx: 12, cy: -7, r: 1.6 }));
+  if (note.dynamic) {
+    group.appendChild(svgElement(doc, "text", { x: 0,
+      y: 28 + underlines * 4 + Math.max(0, -note.octave) * DOT_STEP,
+      "font-size": 14, "font-weight": 700, "font-style": "italic", class: "cue-dynamic" }, note.dynamic));
+  }
   note.topDecorators.forEach((text, index) => {
     group.appendChild(svgElement(doc, "text", {
       x: 0, y: -36 - Math.max(0, note.octave - 1) * DOT_STEP - index * 13, "font-size": 12,
@@ -134,7 +139,7 @@ export function renderCueLayer(
   ...layer.notations.flatMap(note => (note.graceNotes ?? []).map(grace =>
     34 + Math.max(0, grace.octave) * DOT_STEP)));
   const below = Math.max(24, ...layer.notations.map(note =>
-    15 + underlineCount(note) * 4 + Math.max(0, -note.octave) * DOT_STEP),
+    (note.dynamic ? 34 : 15) + underlineCount(note) * 4 + Math.max(0, -note.octave) * DOT_STEP),
   ...layer.notations.flatMap(note => (note.graceNotes ?? []).map(grace =>
     14 + Math.max(0, -grace.octave) * DOT_STEP)));
   const baseline = 30 + above;
