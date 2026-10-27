@@ -40,18 +40,54 @@ export interface BeatIssue {
   expected: number;
 }
 
-/** 全谱校验：段落拍号优先，按四分音符折算时值；仅跳过显式散板段落 */
+/** 只认可从主声部小节末开始、完整接回下一主音的共享小节。 */
+function completesSharedBar(
+  para: Paragraph, bar: ReturnType<typeof measureBeats>[number], offset: number, expected: number,
+): boolean {
+  if (!(bar.beats > 0 && bar.beats < expected)) return false;
+  const same = (a: number, b: number) => Number.isFinite(a) && Math.abs(a - b) <= 1e-6;
+  const isBar = (n: Paragraph["notations"][number]) => ["│", "‖", "||:", ":||"].includes(n.note);
+  // 必须已有小节线；其后的反复/小节线可连续，不能越过休止或其他有时值符号。
+  let resume = bar.end + 1;
+  if (!para.notations[resume] || !isBar(para.notations[resume])) return false;
+  while (para.notations[resume] && isBar(para.notations[resume])) resume++;
+  const next = para.notations[resume];
+  if (!next || !isPitchable(next)) return false;
+  return (para.cueLayers ?? []).some(layer => {
+    if (layer.resumeKey !== next.key || !same(layer.startBeat, offset + bar.beats)) return false;
+    const fragments = measureBeats({ ...para, notations: layer.notations });
+    const first = fragments[0];
+    if (!first || !layer.notations[first.end + 1] || !isBar(layer.notations[first.end + 1]) ||
+        !same(first.beats + bar.beats, expected) ||
+        !fragments.slice(1).every(fragment => same(fragment.beats, expected))) return false;
+    const total = fragments.reduce((sum, fragment) => sum + fragment.beats, 0);
+    const timeline = layer.timelineBeats;
+    if (timeline === undefined || !same(timeline, offset + expected * fragments.length) ||
+        !same(layer.startBeat + total, timeline)) return false;
+    // 其他提示不能在这段补足时间内重叠；端点相接允许。
+    return !(para.cueLayers ?? []).some(other => {
+      if (other === layer) return false;
+      const end = other.startBeat + other.notations.reduce((sum, n) => sum + beatsOf(n), 0);
+      return other.startBeat < timeline - 1e-6 && end > layer.startBeat + 1e-6;
+    });
+  });
+}
+
+/** 全谱校验：段落拍号优先；共享声部须完整满足小节与恢复点约束。 */
 export function validateScore(score: Score): BeatIssue[] {
   const issues: BeatIssue[] = [];
   score.paragraphs.forEach((para, p) => {
     if (para.freeTime === true) return;
     const [num, den] = para.meter ?? score.beat;
     const expected = num * 4 / den;
+    let offset = 0;
     measureBeats(para).forEach((bar, b) => {
-      // 忽略拍数为 0 的空小节（纯小节线连打）
-      if (bar.beats > 0 && Math.abs(bar.beats - expected) > 1e-6) {
+      // 忽略拍数为 0 的空小节（纯小节线连打）；共享补足不改变主声部统计。
+      if (bar.beats > 0 && Math.abs(bar.beats - expected) > 1e-6 &&
+          !completesSharedBar(para, bar, offset, expected)) {
         issues.push({ paragraph: p, bar: b, beats: bar.beats, expected });
       }
+      offset += bar.beats;
     });
   });
   return issues;

@@ -16,7 +16,8 @@ test("牧民新歌工作稿保留原图定位、变拍和复杂连音组", () =>
   assert.deepEqual(score.paragraphs[11].meter, [2, 4]);
   const labels = score.paragraphs.flatMap(p => p.spans ?? []).filter(s => s.kind === "tuplet").map(s => s.label);
   for (const label of ["3", "5", "6", "7", "9"]) assert.ok(labels.includes(label));
-  assert.deepEqual(validateScore(score), [{ paragraph: 10, bar: 0, beats: 0.5, expected: 2 }]);
+  // 主声部半拍+显式提示层首片段一拍半共同完成首个2/4小节。
+  assert.deepEqual(validateScore(score), []);
   assert.equal(score.paragraphs[10].cueLayers?.[0].startBeat, 0.5);
   assert.equal(score.paragraphs[10].cueLayers?.[0].timelineBeats, 8);
   assert.equal(score.paragraphs.filter(p => p.cueLayers?.length).length, 5);
