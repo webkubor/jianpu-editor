@@ -26,7 +26,7 @@ export function toDsl(score: Score): string {
       }
       let prefix = "";
       if (n.graceNotes && n.graceNotes.length > 0) {
-        prefix = `(${n.graceNotes.map(g => (g.octave > 0 ? "^".repeat(g.octave) : ",".repeat(-g.octave)) + g.note).join("")})`;
+        prefix = `(${n.graceNotes.map(g => (g.accidental ?? "").replace("♯", "#").replace("♭", "b") + g.note + "^".repeat(Math.max(0, g.octave)) + ",".repeat(Math.max(0, -g.octave))).join("")})`;
       }
       let techItems: string[] = [];
       if (n.technique) {
@@ -42,7 +42,7 @@ export function toDsl(score: Score): string {
         if (n.technique.vibrato) techItems.push("vib");
         if (n.technique.glissando) techItems.push("gli");
       }
-      const allDecorators = [...(n.topDecorators || []), ...techItems];
+      const allDecorators = [...(n.topDecorators || []), ...techItems, ...(n.dynamic ? [n.dynamic] : [])];
       let token = prefix + (n.note === "─" ? "-" : n.prefixAccidentals.join("").replaceAll("♯", "#").replaceAll("♭", "b") + n.note)
         + "^".repeat(Math.max(0, n.octave)) + ",".repeat(Math.max(0, -n.octave)) + (n.dotted ? "." : "")
         + (allDecorators.length ? `{${allDecorators.join(",")}}` : "");

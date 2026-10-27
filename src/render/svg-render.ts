@@ -45,12 +45,12 @@ export const LAYOUT = {
 
 /** 离屏 canvas 文本测宽（模块级单例） */
 let measureCtx: CanvasRenderingContext2D | null = null;
-export function textWidth(text: string, fontSize: number): number {
+export function textWidth(text: string, fontSize: number, fontFamily = '"Times New Roman", "Songti SC", serif', fontWeight = 400): number {
   if (!measureCtx) {
     const canvas = document.createElement("canvas");
     measureCtx = canvas.getContext("2d");
   }
-  measureCtx!.font = `${fontSize}px "Times New Roman", "Songti SC", serif`;
+  measureCtx!.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   return measureCtx!.measureText(text).width;
 }
 
@@ -78,6 +78,22 @@ interface Glyph {
   core: number;
 }
 
+const NOTE_FONT = "'PingFang SC', 'MiSans', -apple-system, sans-serif";
+const GRACE_FONT = '"Times New Roman", "Songti SC", serif';
+
+/** 测宽与绘制共用的主音锚点；左右附件各自占位，core 仍为整组宽度。 */
+function noteGeometry(n: Notation) {
+  const digitWidth = n.note === EXTEND ? 26 : textWidth(n.note, LAYOUT.fontSize, NOTE_FONT, 600);
+  const accidentalWidths = n.prefixAccidentals.map(a => textWidth(a, LAYOUT.subFontSize, GRACE_FONT));
+  const accidentalWidth = accidentalWidths.reduce((sum, width) => sum + width + 2, 0);
+  const graceWidths = (n.graceNotes ?? []).map(gn => Math.max(8, textWidth((gn.accidental ?? "") + gn.note, 13, GRACE_FONT, 600)));
+  const graceWidth = graceWidths.reduce((sum, width) => sum + width + 4, 0);
+  const left = accidentalWidth + (graceWidth ? graceWidth + 4 : 0);
+  const right = n.dotted ? 6 + LAYOUT.dotR : 0;
+  const mainX = (left - right) / 2;
+  return { digitWidth, accidentalWidths, accidentalWidth, graceWidths, mainX, core: left + digitWidth + right };
+}
+
 /** 测量一个符号的宽度 */
 function measureGlyph(n: Notation): Glyph {
   if (n.note === EXTEND) {
@@ -89,10 +105,7 @@ function measureGlyph(n: Notation): Glyph {
   if (n.note === REPEAT_START || n.note === REPEAT_END) {
     return { n, core: 14, width: 14 + LAYOUT.minGap * 1.8 };
   }
-  const acc = n.prefixAccidentals.join("");
-  const graceLen = n.graceNotes?.length || 0;
-  const graceWidth = graceLen ? graceLen * 12 + 6 : 0;
-  const core = textWidth(n.note, LAYOUT.fontSize) + (acc ? textWidth(acc, LAYOUT.subFontSize) + 2 : 0) + (n.dotted ? 8 : 0) + graceWidth;
+  const { core } = noteGeometry(n);
   return { n, core, width: core + LAYOUT.minGap };
 }
 
@@ -109,6 +122,8 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     fill: "transparent", "pointer-events": "all",
   }));
   const n = g.n;
+  const geometry = noteGeometry(n);
+  const mainX = n.note === EXTEND ? 0 : geometry.mainX;
   if (n.note === "│" || n.note === "‖") {
     const yTop = -14;
     const yBot = 20;
@@ -157,12 +172,13 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     }));
   } else {
     // 前置倚音小音符渲染（如 ⁵ 或 ³⁵，位于左上方，带小斜线与小圆弧连线）
-    let mainXOffset = 0;
     if (n.graceNotes && n.graceNotes.length > 0) {
-      const gCount = n.graceNotes.length;
       const startGx = -g.core / 2;
+      let graceCursor = startGx;
       n.graceNotes.forEach((gn, gi) => {
-        const gx = startGx + gi * 12 + 5;
+        const width = geometry.graceWidths[gi];
+        const gx = graceCursor + width / 2;
+        graceCursor += width + 4;
         const gy = -10;
         // 小数字
         group.appendChild(el("text", {
@@ -173,27 +189,26 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
           "font-size": 13,
           "font-weight": 600,
           class: "grace-note",
-        }, gn.note));
+        }, (gn.accidental ?? "") + gn.note));
         // 倚音八度点
-        if (gn.octave !== 0) {
-          const gOctY = gn.octave > 0 ? gy - 8 : gy + 8;
-          group.appendChild(el("circle", { cx: gx, cy: gOctY, r: 1.5, fill: "currentColor" }));
+        for (let octave = 0; octave < Math.abs(gn.octave); octave++) {
+          const gOctY = gn.octave > 0 ? gy - 10 - octave * 4 : gy + 14 + octave * 4;
+          group.appendChild(el("circle", { cx: gx, cy: gOctY, r: 1.3, fill: "currentColor" }));
         }
         // 倚音下方的双微型减时线
         group.appendChild(el("line", { x1: gx - 4, y1: gy + 7, x2: gx + 4, y2: gy + 7, stroke: "currentColor", "stroke-width": 0.9 }));
         group.appendChild(el("line", { x1: gx - 4, y1: gy + 9.5, x2: gx + 4, y2: gy + 9.5, stroke: "currentColor", "stroke-width": 0.9 }));
       });
       // 倚音到主音的小连弧线
-      const arcEndX = -g.core / 2 + gCount * 12 + 6;
+      const arcEndX = mainX - geometry.digitWidth / 2;
       group.appendChild(el("path", {
         d: `M ${startGx} -3 Q ${startGx + 4} 2 ${arcEndX} -2`,
         stroke: "currentColor", fill: "none", "stroke-width": 0.9,
       }));
-      mainXOffset = gCount * 12 / 2;
     }
 
     // 升降号
-    let accX = -g.core / 2 + mainXOffset;
+    let accX = mainX - geometry.digitWidth / 2 - geometry.accidentalWidth;
     for (const a of n.prefixAccidentals) {
       group.appendChild(el("text", {
         x: accX + textWidth(a, LAYOUT.subFontSize) / 2,
@@ -206,7 +221,7 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     }
     // 主体数字
     group.appendChild(el("text", {
-      x: mainXOffset,
+      x: mainX,
       y: 0,
       "text-anchor": "middle",
       "dominant-baseline": "middle",
@@ -217,10 +232,9 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
   }
   // 附点
   if (n.dotted) {
-    group.appendChild(el("circle", { cx: g.core / 2 + 3, cy: 5, r: LAYOUT.dotR, fill: "currentColor" }));
+    group.appendChild(el("circle", { cx: mainX + geometry.digitWidth / 2 + 5, cy: 5, r: LAYOUT.dotR, fill: "currentColor" }));
   }
   // 八度点：若有减时线，下八度点必须排在所有减时线下方！
-  const mainX = (n.graceNotes?.length || 0) * 12 / 2;
   const dir = n.octave > 0 ? -1 : 1;
   const y0 = n.octave > 0
     ? LAYOUT.dotAboveY
@@ -363,8 +377,8 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
   }
   // 独立减时线（连排横线由段落层连线绘制，未连排则画独立横线）
   if (n.underline > 0) {
-    const underX1 = -g.core / 2 + mainX;
-    const underX2 = g.core / 2 + mainX;
+    const underX1 = mainX - geometry.digitWidth / 2;
+    const underX2 = mainX + geometry.digitWidth / 2;
     for (let i = 0; i < n.underline; i += 1) {
       group.appendChild(el("line", {
         x1: underX1, x2: underX2,
@@ -375,6 +389,13 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         class: `underline-line underline-layer-${i}`,
       }));
     }
+  }
+  if (n.dynamic) {
+    const bottom = n.octave < 0 ? y0 + (Math.abs(n.octave) - 1) * LAYOUT.dotStep + 14 :
+      Math.max(20, LAYOUT.underlineY0 + n.underline * LAYOUT.underlineStep + 10);
+    group.appendChild(el("text", { x: mainX, y: bottom + 12,
+      "text-anchor": "middle", "font-size": 15, "font-style": "italic", "font-weight": 700,
+      class: "dynamic-mark" }, n.dynamic));
   }
   return group;
 }
@@ -465,7 +486,8 @@ export function renderPageSvg(
     const sectionLabel = r.rowInPara === 0
       ? [para.heading, para.freeTime ? "散板" : para.meter?.join("/")].filter(Boolean).join(" · ")
       : "";
-    const headingSpace = sectionLabel ? 30 : 0;
+    const headingSpace = sectionLabel ? 30 + Math.min(100,
+      (para.spans?.filter(span => !["crescendo", "diminuendo"].includes(span.kind)).length ?? 0) * 14) : 0;
     if (sectionLabel) {
       svg.appendChild(el("text", {
         x: A4_PAGE.marginLeft, y: yOffset - 22,
@@ -579,10 +601,22 @@ export function renderPageSvg(
         positions.set(g.n.key, {
           x: A4_PAGE.marginLeft + rowCenterX(rowGlyphs.map(item => item.width), index, flex),
           top: Math.min(-24, -22 - Math.max(0, g.n.octave) * 6 - techCount * 14),
-          bottom: Math.max(28, 22 + g.n.underline * 5 + Math.max(0, -g.n.octave) * 6, para.lyrics.length ? 44 : 0),
+          bottom: Math.max(g.n.dynamic ? 58 : 28, 22 + g.n.underline * 5 + Math.max(0, -g.n.octave) * 6, para.lyrics.length ? 44 : 0),
         });
       });
-      renderMusicSpans(row, para.spans, positions);
+      // 在每个可见行切分跨度，避免跨行对象因缺少端点而消失。
+      const visibleSpans = para.spans.flatMap(span => {
+        const start = para.notations.findIndex(n => n.key === span.startKey);
+        const end = para.notations.findIndex(n => n.key === span.endKey);
+        if (!rowGlyphs.length) return [];
+        const first = para.notations.indexOf(rowGlyphs[0].n);
+        const last = para.notations.indexOf(rowGlyphs[rowGlyphs.length - 1].n);
+        if (start < 0 || end < 0 || first < 0 || last < 0) return [];
+        const left = Math.max(Math.min(start, end), first);
+        const right = Math.min(Math.max(start, end), last);
+        return left < right ? [{ ...span, startKey: para.notations[left].key, endKey: para.notations[right].key }] : [];
+      });
+      renderMusicSpans(row, visibleSpans, positions);
     }
     svg.appendChild(row);
     yOffset += r.rowHeight;

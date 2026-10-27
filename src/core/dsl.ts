@@ -26,7 +26,8 @@ export type Token =
       dotted: boolean;
       accidentals: ("♯" | "♭")[];
       decorators: string[];
-      graceNotes?: { note: string; octave: number }[];
+      dynamic?: Notation["dynamic"];
+      graceNotes?: { note: string; octave: number; accidental?: "♯" | "♭" }[];
       technique?: WindTechnique;
     }
   | { t: "duration"; beats: number; underline: number }
@@ -52,7 +53,7 @@ export function tokenizeLine(line: string): LexResult {
   let i = 0;
   let spaceRun = 0;
   let pendingOctaveUp = false;
-  let pendingGraceNotes: { note: string; octave: number }[] | undefined;
+  let pendingGraceNotes: { note: string; octave: number; accidental?: "♯" | "♭" }[] | undefined;
   // 中文输入法容错：全角数字/符号归一化为半角（１→1、｜→|、～→~、＃→#、　→空格等）
   const normalized = line
     .replace(/　/g, " ")
@@ -161,12 +162,14 @@ export function tokenizeLine(line: string): LexResult {
       if (close > i + 1) {
         const inner = line.slice(i + 1, close);
         // 解析括号内的微型数字音符与八度
-        const parsedGrace: { note: string; octave: number }[] = [];
+        const parsedGrace: { note: string; octave: number; accidental?: "♯" | "♭" }[] = [];
         let gi = 0;
         let gOctUp = false;
+        let graceAccidental: "♯" | "♭" | undefined;
         while (gi < inner.length) {
           const gc = inner[gi];
           if (gc === "^") { gOctUp = true; gi++; continue; }
+          if (/[#b♯♭]/.test(gc)) { graceAccidental = gc === "b" || gc === "♭" ? "♭" : "♯"; gi++; continue; }
           if (/[1-7]/.test(gc)) {
             let oct = gOctUp ? 1 : 0;
             gOctUp = false;
@@ -175,7 +178,8 @@ export function tokenizeLine(line: string): LexResult {
               oct += inner[gi] === "," ? -1 : 1;
               gi++;
             }
-            parsedGrace.push({ note: gc, octave: oct });
+            parsedGrace.push({ note: gc, octave: oct, ...(graceAccidental ? { accidental: graceAccidental } : {}) });
+            graceAccidental = undefined;
             continue;
           }
           gi++;
@@ -220,13 +224,15 @@ export function tokenizeLine(line: string): LexResult {
       // 顶部表情/装饰记号与管乐技巧：如 5{▾}、5{tr}、5{up}、5{down}、5{T}、5{TK}、(5)6 倚音等
       const decorators: string[] = [];
       const technique: WindTechnique = {};
+      let dynamic: Notation["dynamic"];
       if (line[i] === "{") {
         const close = line.indexOf("}", i);
         if (close !== -1) {
           const raw = line.slice(i + 1, close).trim();
           const items = raw.split(/[,，\s]+/).filter(Boolean);
           for (const it of items) {
-            if (it === "tr" || it === "trill") technique.trill = true;
+            if (["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(it)) dynamic = it as Notation["dynamic"];
+            else if (it === "tr" || it === "trill") technique.trill = true;
             else if (it === "mordent" || it === "波音" || it === "w") technique.mordent = true;
             else if (it === "die" || it === "叠" || it === "app") technique.appoggiatura = true;
             else if (it === "accent" || it === ">") technique.accent = true;
@@ -249,6 +255,7 @@ export function tokenizeLine(line: string): LexResult {
         dotted,
         accidentals,
         decorators,
+        dynamic,
         graceNotes,
         technique: Object.keys(technique).length ? technique : undefined,
       });
@@ -310,6 +317,7 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
         dotted: tk.dotted,
         prefixAccidentals: tk.accidentals,
         topDecorators: tk.decorators,
+        dynamic: tk.dynamic,
         graceNotes: tk.graceNotes as any,
         technique: tk.technique,
       });

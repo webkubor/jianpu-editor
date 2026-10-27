@@ -28,6 +28,7 @@ export type TopDecorator = string;
 export interface GraceNote {
   note: NoteDigit;
   octave: number;
+  accidental?: Accidental;
 }
 
 /** 管乐专属技巧记号 */
@@ -84,6 +85,8 @@ export interface Notation {
   technique?: WindTechnique;
   /** 反复跳跃房子标注（如 "1." 或 "2."，在小节上方画横跨门楼线） */
   volta?: string;
+  /** 音下力度记号 */
+  dynamic?: "ppp" | "pp" | "p" | "mp" | "mf" | "f" | "ff";
 }
 
 /** 跨音对象使用稳定音符键，与音值延音 tie 分开保存。 */

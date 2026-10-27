@@ -45,6 +45,7 @@ export function deserializeScore(json: string): Score | null {
           if (typeof n.key !== "string" || !n.key || keys.has(n.key)) return null;
           keys.add(n.key);
         }
+        if (n.dynamic !== undefined && !["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(n.dynamic)) return null;
         if (n.octave !== undefined && !Number.isSafeInteger(n.octave)) return null;
         if (n.underline !== undefined && (!Number.isSafeInteger(n.underline) || n.underline < 0)) return null;
         if (n.beatFrac !== undefined && !(typeof n.beatFrac === "number" && Number.isFinite(n.beatFrac) && n.beatFrac > 0)) return null;
@@ -80,9 +81,10 @@ export function deserializeScore(json: string): Score | null {
           topDecorators: Array.isArray(n.topDecorators) ? n.topDecorators : [],
           tieTo: n.tieTo ? String(n.tieTo) : null,
           beatFrac: typeof n.beatFrac === "number" && n.beatFrac > 0 ? n.beatFrac : undefined,
-          graceNotes: Array.isArray(n.graceNotes) ? n.graceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0 })) : undefined,
+          graceNotes: Array.isArray(n.graceNotes) ? n.graceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0, ...(g.accidental === "♯" || g.accidental === "♭" ? { accidental: g.accidental } : {}) })) : undefined,
           technique: n.technique && typeof n.technique === "object" ? { ...n.technique } : undefined,
           volta: n.volta ? String(n.volta) : undefined,
+          ...(n.dynamic ? { dynamic: n.dynamic } : {}),
         })),
       })),
     };

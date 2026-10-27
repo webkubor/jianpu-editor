@@ -5,7 +5,7 @@
  */
 
 import { EditorState } from "./editor-state.ts";
-import { renderScorePages, renderScorePagesSvgs, renderScoreSvg } from "../render/svg-render.ts";
+import { renderScorePages, renderScorePagesSvgs } from "../render/svg-render.ts";
 import { Player, compileEvents, midiOf, timeBefore, toMidi } from "../core/player.ts";
 import { compileScore } from "../core/dsl.ts";
 import { toDsl } from "../core/dsl-export.ts";
@@ -564,7 +564,52 @@ document.getElementById("export-wav")?.addEventListener("click", async () => {
   }
 });
 
-document.getElementById("export-png")?.addEventListener("click", () => {  const svg = renderScoreSvg(state.score, null);
+/** 导出复用预览分页，纵向拼接；固化计算样式，避免独立 SVG 丢失字体和主题变量。 */
+function renderExportSvg(): SVGSVGElement {
+  const pages = renderScorePagesSvgs(state.score, null);
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  const width = Math.max(...pages.map(page => page.viewBox.baseVal.width));
+  const height = pages.reduce((sum, page) => sum + page.viewBox.baseVal.height, 0);
+  svg.setAttribute("xmlns", ns);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", String(width));
+  svg.setAttribute("height", String(height));
+  const background = document.createElementNS(ns, "rect");
+  background.setAttribute("width", String(width));
+  background.setAttribute("height", String(height));
+  background.setAttribute("fill", "#fff");
+  svg.appendChild(background);
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;visibility:hidden;pointer-events:none";
+  host.appendChild(svg);
+  canvas.appendChild(host);
+  try {
+    let y = 0;
+    for (const page of pages) {
+      const box = page.viewBox.baseVal;
+      page.setAttribute("x", "0");
+      page.setAttribute("y", String(y));
+      page.setAttribute("width", String(box.width));
+      page.setAttribute("height", String(box.height));
+      y += box.height;
+      svg.appendChild(page);
+      for (const node of [page, ...page.querySelectorAll<SVGElement>("*")]) {
+        const style = getComputedStyle(node);
+        for (const property of ["color", "fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity",
+          "font-family", "font-size", "font-weight", "font-style", "letter-spacing", "text-anchor", "dominant-baseline"]) {
+          node.setAttribute(property, style.getPropertyValue(property));
+        }
+      }
+    }
+  } finally {
+    host.remove();
+  }
+  return svg;
+}
+
+document.getElementById("export-png")?.addEventListener("click", () => {
+  const svg = renderExportSvg();
   const xml = new XMLSerializer().serializeToString(svg);
   const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -572,8 +617,8 @@ document.getElementById("export-png")?.addEventListener("click", () => {  const 
   img.onload = () => {
     const scale = 2; // 2x 高清
     const cv = document.createElement("canvas");
-    cv.width = 860 * scale;
-    cv.height = (svg.viewBox.baseVal.height || 400) * scale;
+    cv.width = svg.viewBox.baseVal.width * scale;
+    cv.height = svg.viewBox.baseVal.height * scale;
     const ctx = cv.getContext("2d")!;
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, cv.width, cv.height);
@@ -584,12 +629,16 @@ document.getElementById("export-png")?.addEventListener("click", () => {  const 
     a.download = `${sanitizeFilename(state.score.title || "简谱")}.png`;
     a.click();
   };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    statusEl.textContent = "PNG 导出失败：无法加载乐谱图像";
+  };
   img.src = url;
 });
 
-// SVG 矢量导出：原汁原味可缩放矢量文件，支持插图与排版排版软件
+// SVG 矢量导出：分页纵向拼接为一个可独立打开的矢量文件。
 document.getElementById("export-svg")?.addEventListener("click", () => {
-  const svg = renderScoreSvg(state.score, null);
+  const svg = renderExportSvg();
   const xml = new XMLSerializer().serializeToString(svg);
   downloadText(xml, `${sanitizeFilename(state.score.title || "简谱")}.svg`);
 });

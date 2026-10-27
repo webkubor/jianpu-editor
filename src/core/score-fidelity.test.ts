@@ -4,6 +4,20 @@ import { compileScore } from "./dsl.ts";
 import { toDsl } from "./dsl-export.ts";
 import { validateScore } from "./validate.ts";
 import { serializeScore, deserializeScore } from "./serialize.ts";
+import { createMuminDraft } from "./mumin-draft.ts";
+
+test("牧民新歌工作稿保留原图定位、变拍和复杂连音组", () => {
+  const { score, review } = createMuminDraft();
+  assert.equal(score.tone, "A");
+  assert.equal(score.paragraphs[0].notations[0].note, "6");
+  assert.equal(score.paragraphs[0].notations[0].octave, -1);
+  assert.equal(score.paragraphs[0].freeTime, true);
+  assert.equal(review.filter(r => r.page === 1 && r.row === 5).length, 2);
+  assert.deepEqual(score.paragraphs[11].meter, [2, 4]);
+  const labels = score.paragraphs.flatMap(p => p.spans ?? []).filter(s => s.kind === "tuplet").map(s => s.label);
+  for (const label of ["3", "5", "6", "7", "9"]) assert.ok(labels.includes(label));
+  assert.deepEqual(validateScore(score), [{ paragraph: 10, bar: 0, beats: 1, expected: 2 }]);
+});
 
 test("倚音在高八度前缀后保留，技巧完整往返", () => {
   const score = compileScore("(5)^1{w,die,>,v}:0.5/1");
@@ -14,6 +28,22 @@ test("倚音在高八度前缀后保留，技巧完整往返", () => {
   const back = compileScore(toDsl(score)).paragraphs[0].notations[0];
   assert.deepEqual(back.graceNotes, note.graceNotes);
   assert.deepEqual(back.technique, note.technique);
+});
+
+test("力度作为音下标记而非顶部自由文本，往返不丢失", () => {
+  const score = compileScore("6,{pp}:1/0");
+  assert.equal(score.paragraphs[0].notations[0].dynamic, "pp");
+  assert.deepEqual(score.paragraphs[0].notations[0].topDecorators, []);
+  assert.equal(compileScore(toDsl(score)).paragraphs[0].notations[0].dynamic, "pp");
+  assert.equal(deserializeScore(serializeScore(score))?.paragraphs[0].notations[0].dynamic, "pp");
+});
+
+test("倚音临时变音和低八度在DSL/工程文件往返保留", () => {
+  const score = compileScore("(b7#4,5)6:1/0");
+  const expected = [{ note: "7", octave: 0, accidental: "♭" }, { note: "4", octave: -1, accidental: "♯" }, { note: "5", octave: 0 }];
+  assert.deepEqual(score.paragraphs[0].notations[0].graceNotes, expected);
+  assert.deepEqual(compileScore(toDsl(score)).paragraphs[0].notations[0].graceNotes, expected);
+  assert.deepEqual(deserializeScore(serializeScore(score))?.paragraphs[0].notations[0].graceNotes, expected);
 });
 
 test("跨度对象在 DSL 和 JSON 中保留按音符定位", () => {
