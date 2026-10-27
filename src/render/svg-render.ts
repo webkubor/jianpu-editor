@@ -12,7 +12,7 @@ import type { Notation, Paragraph, Score } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
 import { renderMusicSpans } from "./music-spans.ts";
 import { renderCueLayer } from "./cue-layer.ts";
-import { A4_PAGE, paginateScore, type ScorePage } from "./pagination.ts";
+import { A4_PAGE, INLINE_CUE, paginateScore, type ScorePage } from "./pagination.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
@@ -620,6 +620,31 @@ export function renderPageSvg(
       renderMusicSpans(row, visibleSpans, positions);
     }
     svg.appendChild(row);
+    if (r.isLastRowOfPara) {
+      const layers = para.cueLayers ?? [];
+      const cueHeight = INLINE_CUE.svgHeight + INLINE_CUE.metadataHeight;
+      let cueY = yOffset + r.rowHeight - layers.length * cueHeight;
+      for (const layer of layers) {
+        const host = document.createElement("div");
+        renderCueLayer(host, layer);
+        const cueSvg = host.querySelector("svg");
+        if (!cueSvg) throw new Error(`提示声部未生成 SVG：${layer.label}`);
+        svg.appendChild(el("text", {
+          x: A4_PAGE.marginLeft, y: cueY + 15,
+          "font-size": 12, class: "cue-metadata", "data-para": r.paraIndex,
+        }, `${layer.label || "提示声部"} · 起始拍 ${layer.startBeat}`));
+        cueSvg.setAttribute("x", String(A4_PAGE.marginLeft));
+        cueSvg.setAttribute("y", String(cueY + INLINE_CUE.metadataHeight));
+        cueSvg.setAttribute("width", String(contentWidth));
+        cueSvg.setAttribute("height", String(INLINE_CUE.svgHeight));
+        cueSvg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+        cueSvg.setAttribute("data-para", String(r.paraIndex));
+        // 独立渲染器的 auto 高度适用于 HTML；嵌入 A4 后使用分页预留的固定视口。
+        cueSvg.style.removeProperty("height");
+        svg.appendChild(cueSvg);
+        cueY += cueHeight;
+      }
+    }
     yOffset += r.rowHeight;
   }
 
@@ -633,18 +658,10 @@ export function renderScorePagesSvgs(
   cursorPos: { paragraph: number; itemIndex: number } | null = null
 ): SVGSVGElement[] {
   const pages = paginateScore(score, measureGlyph);
-  if (score.paragraphs.every(p => p.notations.length === 0)) {
+  if (score.paragraphs.every(p => p.notations.length === 0 && !p.cueLayers?.length)) {
     return [renderScoreSvg(score, selectedKey, cursorPos)];
   }
-  const svgs = pages.map(p => renderPageSvg(p, pages.length, score, selectedKey, cursorPos));
-  // 提示层作为独立附录页导出；不得默默丢失括号内的记谱。
-  score.paragraphs.forEach(para => (para.cueLayers ?? []).forEach(layer => {
-    const host = document.createElement("div");
-    renderCueLayer(host, layer);
-    const cueSvg = host.querySelector("svg");
-    if (cueSvg) svgs.push(cueSvg);
-  }));
-  return svgs;
+  return pages.map(p => renderPageSvg(p, pages.length, score, selectedKey, cursorPos));
 }
 export function renderScorePages(
   container: HTMLElement,
@@ -656,7 +673,7 @@ export function renderScorePages(
   container.innerHTML = "";
   const svgs: SVGSVGElement[] = [];
 
-  if (score.paragraphs.every(p => p.notations.length === 0)) {
+  if (score.paragraphs.every(p => p.notations.length === 0 && !p.cueLayers?.length)) {
     // 空谱单卡提示
     const singleSvg = renderScoreSvg(score, selectedKey, cursorPos);
     container.appendChild(singleSvg);
@@ -672,21 +689,6 @@ export function renderScorePages(
     svgs.push(svg);
   });
 
-  const cues = score.paragraphs.flatMap((para, index) => (para.cueLayers ?? []).map(layer => ({ layer, index })));
-  if (cues.length) {
-    const appendix = document.createElement("section");
-    appendix.className = "page-card-wrapper cue-appendix";
-    const heading = document.createElement("h2");
-    heading.textContent = "括号提示声部（与正文共享时间线）";
-    appendix.appendChild(heading);
-    cues.forEach(({ layer, index }) => {
-      const item = document.createElement("div");
-      item.dataset.paragraph = String(index);
-      renderCueLayer(item, layer);
-      appendix.appendChild(item);
-    });
-    container.appendChild(appendix);
-  }
   return svgs;
 }
 

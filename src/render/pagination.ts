@@ -21,6 +21,9 @@ export const A4_PAGE = {
   techRowExtraHeight: 18,
 } as const;
 
+/** 内嵌提示声部固定视口；分页与 SVG 绘制共享占位，保持内容等比缩放。 */
+export const INLINE_CUE = { svgHeight: 140, metadataHeight: 22 } as const;
+
 export interface LayoutRow {
   paraIndex: number;
   rowInPara: number;
@@ -71,13 +74,16 @@ export function paginateScore<G extends { n: Notation; width: number; core: numb
       (g) => g.n.note === BAR || g.n.note === DOUBLE_BAR || g.n.note === REPEAT_START || g.n.note === REPEAT_END
     );
 
+    // 只有提示声部的段落也保留一个锚点行，避免空正文吞掉提示内容。
+    if (!splitRows.length && para.cueLayers?.length) splitRows.push([]);
     const hasLyrics = para.lyrics.length > 0;
     splitRows.forEach((rowGlyphs, rowInPara) => {
       const isLastRowOfPara = rowInPara === splitRows.length - 1;
       const rowHeight = estimateRowHeight(rowGlyphs, hasLyrics) +
         (rowInPara === 0 && (para.heading || para.meter || para.freeTime)
           ? 30 + Math.min(100, (para.spans?.filter(s => !["crescendo", "diminuendo"].includes(s.kind)).length ?? 0) * 14) : 0) +
-        Math.min(120, (para.spans?.length ?? 0) * 18);
+        Math.min(120, (para.spans?.length ?? 0) * 18) +
+        (isLastRowOfPara ? (para.cueLayers?.length ?? 0) * (INLINE_CUE.svgHeight + INLINE_CUE.metadataHeight) : 0);
       allRows.push({
         paraIndex,
         rowInPara,
