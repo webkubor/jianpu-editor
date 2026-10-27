@@ -196,6 +196,14 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
           const gOctY = gn.octave > 0 ? gy - 10 - octave * 4 : gy + 14 + octave * 4;
           group.appendChild(el("circle", { cx: gx, cy: gOctY, r: 1.3, fill: "currentColor" }));
         }
+        if (gn.mordent) {
+          const waveY = gy - 14 - Math.max(0, gn.octave) * 4;
+          group.appendChild(el("path", {
+            d: `M ${gx - 5} ${waveY + 2} l 2 -3 l 2 3 l 2 -3 l 2 3 l 2 -3`,
+            stroke: "currentColor", "stroke-width": 1.1, fill: "none",
+            class: "grace-mordent", "aria-label": "倚音波音",
+          }));
+        }
         // 倚音下方的双微型减时线
         group.appendChild(el("line", { x1: gx - 4, y1: gy + 7, x2: gx + 4, y2: gy + 7, stroke: "currentColor", "stroke-width": 0.9 }));
         group.appendChild(el("line", { x1: gx - 4, y1: gy + 9.5, x2: gx + 4, y2: gy + 9.5, stroke: "currentColor", "stroke-width": 0.9 }));

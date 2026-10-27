@@ -26,7 +26,7 @@ export function toDsl(score: Score): string {
       }
       let prefix = "";
       if (n.graceNotes && n.graceNotes.length > 0) {
-        prefix = `(${n.graceNotes.map(g => (g.accidental ?? "").replace("♯", "#").replace("♭", "b") + g.note + "^".repeat(Math.max(0, g.octave)) + ",".repeat(Math.max(0, -g.octave))).join("")})`;
+        prefix = `(${n.graceNotes.map(g => (g.accidental ?? "").replace("♯", "#").replace("♭", "b") + g.note + "^".repeat(Math.max(0, g.octave)) + ",".repeat(Math.max(0, -g.octave)) + (g.mordent ? "{w}" : "")).join("")})`;
       }
       let techItems: string[] = [];
       if (n.technique) {

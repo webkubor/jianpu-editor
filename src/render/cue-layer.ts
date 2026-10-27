@@ -69,6 +69,13 @@ function drawGrace(group: SVGGElement, grace: GraceNote[], right: number): void 
     }
     line(group, x - 4, -13, x + 4, -13, 0.8);
     octaveDots(group, x, note.octave, -30, -9, 0.65);
+    if (note.mordent) {
+      const y = -36 - Math.max(0, note.octave) * DOT_STEP;
+      group.appendChild(svgElement(doc, "path", {
+        d: `M ${x - 5} ${y + 2} l 2 -3 l 2 3 l 2 -3 l 2 3 l 2 -3`,
+        fill: "none", stroke: "currentColor", "stroke-width": 1.1, class: "grace-mordent",
+      }));
+    }
   });
   if (grace.length) {
     group.appendChild(svgElement(doc, "path", {

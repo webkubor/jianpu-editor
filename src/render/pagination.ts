@@ -62,7 +62,7 @@ export function estimateRowHeight(glyphs: { n: Notation }[], hasLyrics: boolean)
 /** 与跨度绘制共用完整字形边界，技巧/装饰按单音最大堆叠量预留。 */
 export function spanGlyphBounds(n: Notation, hasLyrics: boolean) {
   const decorations = Object.values(n.technique ?? {}).filter(Boolean).length + n.topDecorators.length;
-  const graceTop = Math.max(0, ...(n.graceNotes ?? []).map(grace => Math.max(0, grace.octave) * 4 + 18));
+  const graceTop = Math.max(0, ...(n.graceNotes ?? []).map(grace => Math.max(0, grace.octave) * 4 + (grace.mordent ? 28 : 18)));
   return {
     top: Math.min(-24, -22 - Math.max(0, n.octave) * 6 - decorations * 14, -graceTop, n.volta ? -36 : 0),
     bottom: Math.max(n.dynamic ? 58 : 28, 22 + n.underline * 5 + Math.max(0, -n.octave) * 6, hasLyrics ? 44 : 0),

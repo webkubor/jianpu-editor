@@ -27,7 +27,7 @@ export type Token =
       accidentals: ("♯" | "♭")[];
       decorators: string[];
       dynamic?: Notation["dynamic"];
-      graceNotes?: { note: string; octave: number; accidental?: "♯" | "♭" }[];
+      graceNotes?: { note: string; octave: number; accidental?: "♯" | "♭"; mordent?: boolean }[];
       technique?: WindTechnique;
     }
   | { t: "duration"; beats: number; underline: number }
@@ -53,7 +53,7 @@ export function tokenizeLine(line: string): LexResult {
   let i = 0;
   let spaceRun = 0;
   let pendingOctaveUp = false;
-  let pendingGraceNotes: { note: string; octave: number; accidental?: "♯" | "♭" }[] | undefined;
+  let pendingGraceNotes: { note: string; octave: number; accidental?: "♯" | "♭"; mordent?: boolean }[] | undefined;
   // 中文输入法容错：全角数字/符号归一化为半角（１→1、｜→|、～→~、＃→#、　→空格等）
   const normalized = line
     .replace(/　/g, " ")
@@ -162,7 +162,7 @@ export function tokenizeLine(line: string): LexResult {
       if (close > i + 1) {
         const inner = line.slice(i + 1, close);
         // 解析括号内的微型数字音符与八度
-        const parsedGrace: { note: string; octave: number; accidental?: "♯" | "♭" }[] = [];
+        const parsedGrace: { note: string; octave: number; accidental?: "♯" | "♭"; mordent?: boolean }[] = [];
         let gi = 0;
         let gOctUp = false;
         let graceAccidental: "♯" | "♭" | undefined;
@@ -178,7 +178,9 @@ export function tokenizeLine(line: string): LexResult {
               oct += inner[gi] === "," ? -1 : 1;
               gi++;
             }
-            parsedGrace.push({ note: gc, octave: oct, ...(graceAccidental ? { accidental: graceAccidental } : {}) });
+            const mordent = inner.slice(gi, gi + 3) === "{w}";
+            if (mordent) gi += 3;
+            parsedGrace.push({ note: gc, octave: oct, ...(graceAccidental ? { accidental: graceAccidental } : {}), ...(mordent ? { mordent: true } : {}) });
             graceAccidental = undefined;
             continue;
           }

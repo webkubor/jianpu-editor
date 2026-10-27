@@ -29,6 +29,8 @@ export interface GraceNote {
   note: NoteDigit;
   octave: number;
   accidental?: Accidental;
+  /** 倚音上方波音（DSL 后缀 {w}） */
+  mordent?: boolean;
 }
 
 /** 管乐专属技巧记号 */
