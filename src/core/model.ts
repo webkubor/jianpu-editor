@@ -51,8 +51,12 @@ export interface WindTechnique {
   vibrato?: boolean;
   /** 花舌 (flutter tongue, 标注 * 或 fl) */
   flutter?: boolean;
-  /** 叠音 (上叠音，标注 叉号 ⚹ 或叠) */
+  /** 叠音（上下横帽相连的沙漏形）；技巧释义暂据辅助图例，未经权威校订。 */
   appoggiatura?: boolean;
+  /** 泛音（空心小圆，DSL {harm}）；暂据辅助图例，不推断播放效果。 */
+  harmonic?: boolean;
+  /** 手指打音（小 T，DSL {strike}），与舌吐音分开保存。 */
+  fingerStrike?: boolean;
   /** 换气记号 (v) */
   breath?: boolean;
   /** 重音记号 (>) */

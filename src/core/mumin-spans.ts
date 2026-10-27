@@ -228,23 +228,31 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       slur(6, "6/0 ─/0 │/0 6/0");
     }
   }
-  if (page === 4 && sourceRow === 2) {
-    // 主图第四页第2系统、对照版第2页倒数第2系统：23→5、35→6、5→6、6→高2。
-    add("slur", 12, 15);
-    add("slur", 17, 20);
-    add("slur", 21, 22);
-    add("slur", 26, 28);
-  }
-  if (page === 4 && sourceRow === 3) {
-    const starts = [0];
-    para.notations.forEach((n, index) => { if (["│", "‖", "||:", ":||"].includes(n.note)) starts.push(index + 1); });
-    // 两版末系统均见第2小节高2至高1短弧。
-    add("slur", 4, 5);
-    // 两版原速tr波浪线均从第4小节首6延至第6小节首6附近；弧线分别覆盖长音组。
-    if (starts.length >= 6) {
-      add("trill", starts[3], starts[5]);
-      add("slur", starts[3], starts[4] - 2);
-      add("slur", starts[4], starts[5]);
+  if (page === 4 && [2, 3].includes(sourceRow)) {
+    const curve = (kind: "slur" | "trill", start: number, pitches: string) => {
+      // 主音索引含小节线及延音线、不含倚音；逐音核对唱名与八度，防改写后错绑。
+      const expected = pitches.split(" ");
+      const actual = para.notations.slice(start, start + expected.length);
+      if (actual.length === expected.length && actual.every((n, i) => `${n.note}/${n.octave}` === expected[i])) {
+        add(kind, start, start + expected.length - 1);
+      }
+    };
+    if (sourceRow === 2) {
+      // 主图第四页第2系统、对照版第2页倒数第2系统：23→5、35→6、5→6、6→高2。
+      curve("slur", 12, "2/0 3/0 │/0 5/0");
+      curve("slur", 17, "3/0 5/0 │/0 6/0");
+      curve("slur", 21, "5/0 6/0");
+      curve("slur", 26, "6/0 1/1 2/1");
+    }
+    if (sourceRow === 3) {
+      // 两版末系统均见第2小节高2至高1短弧。
+      curve("slur", 4, "2/1 1/1");
+      // 第3小节第二个带倚音3的主音5至6有普通短弧；小字倚音不占端点。
+      curve("slur", 9, "5/0 6/0");
+      // 两版原速tr波浪线均从第4小节首6延至第6小节首6附近；弧线分别覆盖长音组。
+      curve("trill", 14, "6/0 ─/0 │/0 6/0 ─/0 │/0 6/0");
+      curve("slur", 14, "6/0 ─/0");
+      curve("slur", 17, "6/0 ─/0 │/0 6/0");
     }
   }
   return spans;

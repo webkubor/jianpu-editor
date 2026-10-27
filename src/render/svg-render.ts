@@ -281,14 +281,12 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       techTopY -= 11;
     }
     if (tech.appoggiatura) {
-      group.appendChild(el("text", {
-        x: mainX,
-        y: techTopY,
-        "text-anchor": "middle",
-        "dominant-baseline": "middle",
-        "font-size": 13,
-        class: "wind-tech-appoggiatura",
-      }, "⚹"));
+      // 辅助图例中的叠音为上下横帽相连的沙漏形，不使用依赖字体的星号。
+      group.appendChild(el("path", {
+        d: `M ${mainX - 4} ${techTopY - 3} H ${mainX + 4} L ${mainX - 4} ${techTopY + 3} H ${mainX + 4} Z`,
+        stroke: "currentColor", "stroke-width": 1.2, fill: "none",
+        class: "wind-tech-appoggiatura", "aria-label": "叠音",
+      }));
       techTopY -= 11;
     }
     if (tech.accent) {
@@ -313,6 +311,14 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         "font-weight": 700,
         class: "wind-tech-tonguing",
       }, tech.tonguing));
+      techTopY -= 10;
+    }
+    if (tech.fingerStrike) {
+      group.appendChild(el("path", {
+        d: `M ${mainX - 3} ${techTopY - 3} H ${mainX + 3} M ${mainX} ${techTopY - 3} V ${techTopY + 3}`,
+        stroke: "currentColor", "stroke-width": 1.3, fill: "none",
+        class: "wind-tech-finger-strike", "aria-label": "打音",
+      }));
       techTopY -= 10;
     }
     if (tech.breath) {
@@ -365,6 +371,14 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         "dominant-baseline": "middle",
         "font-size": 13,
       }, "〰"));
+      techTopY -= 10;
+    }
+    if (tech.harmonic) {
+      group.appendChild(el("circle", {
+        cx: mainX, cy: techTopY, r: 2.5,
+        stroke: "currentColor", "stroke-width": 1.2, fill: "none",
+        class: "wind-tech-harmonic", "aria-label": "泛音",
+      }));
       techTopY -= 10;
     }
   }

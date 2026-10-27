@@ -237,6 +237,8 @@ export function tokenizeLine(line: string): LexResult {
             else if (it === "tr" || it === "trill") technique.trill = true;
             else if (it === "mordent" || it === "波音" || it === "w") technique.mordent = true;
             else if (it === "die" || it === "叠" || it === "app") technique.appoggiatura = true;
+            else if (it === "harm") technique.harmonic = true;
+            else if (it === "strike") technique.fingerStrike = true;
             else if (it === "accent" || it === ">") technique.accent = true;
             else if (it === "v" || it === "breath" || it === "气") technique.breath = true;
             else if (it === "up" || it === "↗" || it === "上滑") technique.slideUp = true;

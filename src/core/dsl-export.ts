@@ -33,6 +33,8 @@ export function toDsl(score: Score): string {
         if (n.technique.trill) techItems.push("tr");
         if (n.technique.mordent) techItems.push("w");
         if (n.technique.appoggiatura) techItems.push("die");
+        if (n.technique.harmonic) techItems.push("harm");
+        if (n.technique.fingerStrike) techItems.push("strike");
         if (n.technique.accent) techItems.push(">");
         if (n.technique.breath) techItems.push("v");
         if (n.technique.slideUp) techItems.push("up");

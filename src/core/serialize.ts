@@ -31,6 +31,12 @@ function validateNotation(value: unknown, keys: Set<string>): boolean {
     !n.topDecorators.every((value: unknown) => typeof value === "string"))) return false;
   if (n.graceNotes !== undefined && (!Array.isArray(n.graceNotes) ||
     !n.graceNotes.every(g => g && (g.mordent === undefined || typeof g.mordent === "boolean")))) return false;
+  if (n.technique !== undefined) {
+    if (!n.technique || typeof n.technique !== "object" || Array.isArray(n.technique)) return false;
+    for (const flag of ["harmonic", "fingerStrike", "appoggiatura"] as const) {
+      if (n.technique[flag] !== undefined && typeof n.technique[flag] !== "boolean") return false;
+    }
+  }
   return true;
 }
 
