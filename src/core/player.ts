@@ -4,7 +4,7 @@
  * 频率 = 440 * 2^((midi-69)/12)。每个 sounding 符号按基准时值（speed bpm）发声。
  */
 
-import { EXTEND, isPitchable } from "./model.ts";
+import { EXTEND, REPEAT_START, REPEAT_END, isPitchable } from "./model.ts";
 import type { Notation, Paragraph, Score } from "./model.ts";
 
 /** 唱名 → 半音级（同 transpose 表，独立声明避免循环依赖） */
@@ -127,8 +127,8 @@ function paragraphTiming(para: Paragraph): { starts: number[]; mainEnd: number; 
   };
 }
 
-/** 把整份乐谱编译成播放事件流；休止符保留时长与光标位置，midi 为 null。同音高连音线合并为一个持续音。 */
-export function compileEvents(score: Score): PlayEvent[] {
+/** 先保留原谱共享时间轴与延音，再按显式反复标记展开。 */
+function compileLinearEvents(score: Score): PlayEvent[] {
   const events: PlayEvent[] = [];
   const secPerBeat = beatSeconds(score.speed);
   const midiBase = toneToMidiBase(score.tone);
@@ -155,8 +155,9 @@ export function compileEvents(score: Score): PlayEvent[] {
         const consumed: Notation[] = [];
         while (cursor?.tieTo) {
           const nextIdx = para.notations.findIndex(o => o.key === cursor!.tieTo);
-          const next = nextIdx > idx ? para.notations[nextIdx] : undefined;
-          if (!next) break;
+          const next: Notation | undefined = nextIdx > para.notations.indexOf(cursor!) ? para.notations[nextIdx] : undefined;
+          if (!next || para.notations.slice(para.notations.indexOf(cursor!) + 1, nextIdx)
+            .some(o => o.note === REPEAT_START || o.note === REPEAT_END)) break;
           if (isPitchable(next)) {
             if (midiOf(score.tone, next) !== midi) break;
           } else if (next.note !== EXTEND) break;
@@ -168,7 +169,7 @@ export function compileEvents(score: Score): PlayEvent[] {
         // 普通延音线接续最后一个连音后继；小节线不截断延音，休止符和新音高截断。
         for (let nextIdx = para.notations.indexOf(cursor!) + 1; nextIdx < para.notations.length; nextIdx += 1) {
           const next = para.notations[nextIdx];
-          if (next.note === "0" || isPitchable(next)) break;
+          if (next.note === "0" || isPitchable(next) || next.note === REPEAT_START || next.note === REPEAT_END) break;
           if (next.note !== EXTEND || merged.has(next)) continue;
           consumed.push(next);
           merged.add(next);
@@ -205,23 +206,93 @@ export function compileEvents(score: Score): PlayEvent[] {
   return events;
 }
 
+interface PlaybackPosition {
+  paragraph: number;
+  index: number;
+  note?: string;
+  start: number;
+  events: PlayEvent[];
+}
+
+function playbackPositions(score: Score): PlaybackPosition[] {
+  const linear = compileLinearEvents(score);
+  const sec = beatSeconds(score.speed);
+  const positions: PlaybackPosition[] = [];
+  let start = 0;
+  score.paragraphs.forEach((para, paragraph) => {
+    const timing = paragraphTiming(para);
+    const byIndex = new Map<number, PlayEvent[]>();
+    const tail: PlayEvent[] = [];
+    for (const event of linear.filter(e => e.paragraph === paragraph)) {
+      if (timing.end > timing.mainEnd && event.start >= start + timing.mainEnd * sec) tail.push(event);
+      else byIndex.set(event.index, [...(byIndex.get(event.index) ?? []), event]);
+    }
+    para.notations.forEach((n, index) => positions.push({
+      paragraph, index, note: n.note, start: start + timing.starts[index] * sec,
+      events: byIndex.get(index) ?? [],
+    }));
+    if (tail.length) positions.push({ paragraph, index: -1, start: start + timing.mainEnd * sec, events: tail });
+    start += timing.end * sec;
+    positions.push({ paragraph, index: para.notations.length, start, events: [] });
+  });
+  return positions;
+}
+
+/** 栈配对只接受显式首尾；未配对标记不跳转，房子/DS/DC 等标注不推断路径。 */
+function traversePlayback(score: Score, visit: (position: PlaybackPosition, start: number) => void): number {
+  const positions = playbackPositions(score);
+  const stack: number[] = [];
+  const pairs = new Map<number, number>();
+  positions.forEach((position, index) => {
+    if (position.note === REPEAT_START) stack.push(index);
+    else if (position.note === REPEAT_END && stack.length) pairs.set(index, stack.pop()!);
+  });
+  const repeated = new Set<number>();
+  // 嵌套每层两遍；病态深嵌套最多允许此预算内的跳转，耗尽后顺序播完余谱。
+  const budget = Math.max(10_000, positions.length * 16);
+  let steps = 0;
+  let elapsed = 0;
+  for (let i = 0; i < positions.length; i += 1) {
+    const position = positions[i];
+    visit(position, elapsed);
+    const repeatStart = pairs.get(i);
+    if (repeatStart !== undefined && !repeated.has(i) && steps < budget) {
+      repeated.add(i);
+      for (const end of repeated) if (end > repeatStart && end < i) repeated.delete(end);
+      i = repeatStart - 1;
+      steps += 1;
+      continue;
+    }
+    elapsed += (positions[i + 1]?.start ?? position.start) - position.start;
+    steps += 1;
+  }
+  return elapsed;
+}
+
+/** 编译两遍显式配对反复（含跨段与嵌套）；事件保留原谱下标，且不修改乐谱。 */
+export function compileEvents(score: Score): PlayEvent[] {
+  const events: PlayEvent[] = [];
+  traversePlayback(score, (position, start) => {
+    for (const event of position.events) events.push({ ...event, start: start + event.start - position.start });
+  });
+  return events;
+}
+
 /** 单符号音高换算（对外导出，供即时试听与连音线同音高判定用） */
 export function midiOf(tone: string, n: Notation): number {
   const acc = (n.prefixAccidentals || []).reduce((a, x) => a + (x === "♯" ? 1 : -1), 0);
   return toneToMidiBase(tone) + DIGIT_TO_LEVEL[n.note] + acc + 12 * n.octave;
 }
 
-/** 光标处播放：返回某段某符号下标之前的总时值（秒），作为播放起点 offset。 */
+/** 光标处播放：反复符号取首次经过的时间（秒），段尾位置含已完成的反复。 */
 export function timeBefore(score: Score, paragraph: number, itemIndex: number): number {
-  const secPerBeat = beatSeconds(score.speed);
-  let t = 0;
-  for (let p = 0; p < paragraph && p < score.paragraphs.length; p += 1) {
-    t += paragraphTiming(score.paragraphs[p]).end * secPerBeat;
-  }
   const para = score.paragraphs[paragraph];
-  if (!para) return t;
-  const timing = paragraphTiming(para);
-  return t + (timing.starts[Math.max(0, itemIndex)] ?? timing.end) * secPerBeat;
+  const index = Math.min(Math.max(0, itemIndex), para?.notations.length ?? 0);
+  let first: number | undefined;
+  const end = traversePlayback(score, (position, start) => {
+    if (first === undefined && position.paragraph === paragraph && position.index === index) first = start;
+  });
+  return first ?? end;
 }
 
 /** 播放器状态回调 */
