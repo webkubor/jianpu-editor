@@ -28,6 +28,7 @@ export type Token =
       accidentals: ("♯" | "♭")[];
       decorators: string[];
       dynamic?: Notation["dynamic"];
+      direction?: string;
       graceNotes?: { note: string; octave: number; accidental?: "♯" | "♭"; mordent?: boolean }[];
       technique?: WindTechnique;
     }
@@ -248,13 +249,21 @@ export function tokenizeLine(line: string): LexResult {
       const decorators: string[] = [];
       const technique: WindTechnique = {};
       let dynamic: Notation["dynamic"];
+      let direction: string | undefined;
       if (line[i] === "{") {
         const close = line.indexOf("}", i);
         if (close !== -1) {
-          const raw = line.slice(i + 1, close).trim();
+          const raw = line.slice(i + 1, close);
+          // 简化语法：表情文字仅支持无空白、逗号或花括号的单个标签，复杂文本留待转义语法。
+          for (const match of raw.matchAll(/(?:^|[,，\s])text=([^,，]*)/g)) {
+            if (!match[1] || match[1].length > 120 || /[\s{}\u0000-\u001f\u007f-\u009f]/.test(match[1])) {
+              throw new SyntaxError("表情文字须为不超过 120 字符的无空白标签，且不能包含控制字符或花括号");
+            }
+          }
           const items = raw.split(/[,，\s]+/).filter(Boolean);
           for (const it of items) {
-            if (["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(it)) dynamic = it as Notation["dynamic"];
+            if (it.startsWith("text=")) direction = it.slice(5);
+            else if (["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(it)) dynamic = it as Notation["dynamic"];
             else if (it === "tr" || it === "trill") technique.trill = true;
             else if (it === "mordent" || it === "波音" || it === "w") technique.mordent = true;
             else if (it === "die" || it === "叠" || it === "app") technique.appoggiatura = true;
@@ -281,6 +290,7 @@ export function tokenizeLine(line: string): LexResult {
         accidentals,
         decorators,
         dynamic,
+        direction,
         graceNotes,
         technique: Object.keys(technique).length ? technique : undefined,
       });
@@ -343,6 +353,7 @@ function compileTokens(tokens: Token[], beatBreaks: Set<number>): { notations: N
         prefixAccidentals: tk.accidentals,
         topDecorators: tk.decorators,
         dynamic: tk.dynamic,
+        direction: tk.direction,
         graceNotes: tk.graceNotes as any,
         technique: tk.technique,
       });

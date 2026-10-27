@@ -59,7 +59,7 @@ function drawBar(group: SVGGElement, symbol: string): void {
   }
 }
 
-function drawGrace(group: SVGGElement, grace: GraceNote[], right: number): void {
+function drawGrace(group: SVGGElement, grace: GraceNote[], right: number, trailing = false): void {
   const doc = group.ownerDocument;
   grace.forEach((note, index) => {
     const x = right - (grace.length - index) * 20;
@@ -79,7 +79,9 @@ function drawGrace(group: SVGGElement, grace: GraceNote[], right: number): void 
   });
   if (grace.length) {
     group.appendChild(svgElement(doc, "path", {
-      d: `M ${right - grace.length * 20} -7 Q ${right - 8} 0 ${right + 2} -8`,
+      d: trailing
+        ? `M ${right - grace.length * 20 - 12} -8 Q ${right - grace.length * 20} 0 ${right - 20} -7`
+        : `M ${right - grace.length * 20} -7 Q ${right - 8} 0 ${right + 2} -8`,
       fill: "none", stroke: "currentColor", "stroke-width": 0.9,
     }));
   }
@@ -95,6 +97,8 @@ function drawNote(group: SVGGElement, note: Notation): void {
   const accidentalRight = -14;
   const graceRight = accidentalRight - note.prefixAccidentals.length * 11;
   drawGrace(group, note.graceNotes ?? [], graceRight);
+  const postGrace = note.postGraceNotes ?? [];
+  drawGrace(group, postGrace, (note.dotted ? 32 : 24) + postGrace.length * 20, true);
   note.prefixAccidentals.forEach((accidental, index) => {
     group.appendChild(svgElement(doc, "text", {
       x: accidentalRight - (note.prefixAccidentals.length - index - 1) * 11,
@@ -132,15 +136,16 @@ export function renderCueLayer(
   const timeline = Math.max(0, end, Number.isFinite(layer.timelineBeats) ? layer.timelineBeats ?? 0 : 0) || 1;
   // 按最拥挤符号决定每拍尺度，附件不会挤压短音符；小节线本身不占拍。
   const beatWidth = timed.reduce((width, { note, beats }) => beats > 0
-    ? Math.max(width, (38 + (note.graceNotes?.length ?? 0) * 40 + note.prefixAccidentals.length * 22) / beats)
+    ? Math.max(width, (38 + ((note.graceNotes?.length ?? 0) + (note.postGraceNotes?.length ?? 0)) * 40
+      + note.prefixAccidentals.length * 22) / beats)
     : width, 44);
   const above = Math.max(40, ...layer.notations.map(note =>
     36 + Math.max(0, note.octave) * DOT_STEP + note.topDecorators.length * 13),
-  ...layer.notations.flatMap(note => (note.graceNotes ?? []).map(grace =>
+  ...layer.notations.flatMap(note => [...(note.graceNotes ?? []), ...(note.postGraceNotes ?? [])].map(grace =>
     34 + Math.max(0, grace.octave) * DOT_STEP)));
   const below = Math.max(24, ...layer.notations.map(note =>
     (note.dynamic ? 34 : 15) + underlineCount(note) * 4 + Math.max(0, -note.octave) * DOT_STEP),
-  ...layer.notations.flatMap(note => (note.graceNotes ?? []).map(grace =>
+  ...layer.notations.flatMap(note => [...(note.graceNotes ?? []), ...(note.postGraceNotes ?? [])].map(grace =>
     14 + Math.max(0, -grace.octave) * DOT_STEP)));
   const baseline = 30 + above;
   const width = PAD * 2 + timeline * beatWidth;

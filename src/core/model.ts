@@ -93,6 +93,8 @@ export interface Notation {
   technique?: WindTechnique;
   /** 反复跳跃房子标注（如 "1." 或 "2."，在小节上方画横跨门楼线） */
   volta?: string;
+  /** 锚定当前音符的音乐表情文字（如「渐慢」） */
+  direction?: string;
   /** 音下力度记号 */
   dynamic?: "ppp" | "pp" | "p" | "mp" | "mf" | "f" | "ff";
 }

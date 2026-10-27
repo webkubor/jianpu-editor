@@ -21,6 +21,7 @@ function validateNotation(value: unknown, keys: Set<string>): boolean {
     if (typeof n.key !== "string" || !n.key || keys.has(n.key)) return false;
     keys.add(n.key);
   }
+  if (n.direction !== undefined && (typeof n.direction !== "string" || n.direction.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(n.direction))) return false;
   if (n.dynamic !== undefined && !["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(n.dynamic)) return false;
   if (n.octave !== undefined && !Number.isSafeInteger(n.octave)) return false;
   if (n.underline !== undefined && (!Number.isSafeInteger(n.underline) || n.underline < 0)) return false;
@@ -59,6 +60,7 @@ function deserializeNotation(n: Partial<Notation>): Notation {
     postGraceNotes: Array.isArray(n.postGraceNotes) ? n.postGraceNotes.map(g => ({ note: String(g.note || "1") as any, octave: Number(g.octave) || 0, ...(g.accidental === "♯" || g.accidental === "♭" ? { accidental: g.accidental } : {}), ...(g.mordent !== undefined ? { mordent: g.mordent } : {}) })) : undefined,
     technique: n.technique && typeof n.technique === "object" ? { ...n.technique } : undefined,
     volta: n.volta ? String(n.volta) : undefined,
+    ...(n.direction !== undefined ? { direction: n.direction } : {}),
     ...(n.dynamic ? { dynamic: n.dynamic } : {}),
   };
 }

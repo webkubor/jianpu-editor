@@ -46,6 +46,10 @@ export function createMuminDraft() {
       if (para.notations[16]) para.notations[16].dynamic = "ff";
     }
     if (pageIndex === 0 && row.sourceRow === 4 && para.notations[27]) para.notations[27].dynamic = "mp";
+    // 只标印刷表情文字及其起音，不虚构渐慢的BPM曲线。
+    if (pageIndex === 1 && row.sourceRow === 1 && para.notations[22]) para.notations[22].direction = "渐慢";
+    if (pageIndex === 3 && row.sourceRow === 2 && para.notations[25]) para.notations[25].direction = "渐慢";
+    if (pageIndex === 3 && row.sourceRow === 3 && para.notations[14]) para.notations[14].direction = "原速";
     review.push({ page: pageIndex + 1, row: row.sourceRow, uncertainties: row.uncertainties });
     return para;
   }));

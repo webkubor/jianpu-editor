@@ -412,6 +412,16 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
         class: "top-decorator",
       }, dec));
     });
+    techTopY -= n.topDecorators.length * 12;
+  }
+  if (n.direction) {
+    // 表情文字放在现有技巧与装饰栈上方，并锚定主音而非附件组中心。
+    group.appendChild(el("text", {
+      x: mainX, y: techTopY - 4,
+      "text-anchor": "middle", "dominant-baseline": "middle",
+      "font-size": 14, class: "score-direction",
+    }, n.direction));
+    techTopY -= 18;
   }
   // 独立减时线（连排横线由段落层连线绘制，未连排则画独立横线）
   if (n.underline > 0) {

@@ -44,7 +44,11 @@ export function toDsl(score: Score): string {
         if (n.technique.vibrato) techItems.push("vib");
         if (n.technique.glissando) techItems.push("gli");
       }
-      const allDecorators = [...(n.topDecorators || []), ...techItems, ...(n.dynamic ? [n.dynamic] : [])];
+      if (n.direction !== undefined && (!n.direction || n.direction.length > 120 || /[\s,，{}\u0000-\u001f\u007f-\u009f]/.test(n.direction))) {
+        throw new SyntaxError("DSL 表情文字须为不超过 120 字符的无空白标签，且不能包含逗号、花括号或控制字符");
+      }
+      const allDecorators = [...(n.topDecorators || []), ...techItems, ...(n.dynamic ? [n.dynamic] : []),
+        ...(n.direction !== undefined ? [`text=${n.direction}`] : [])];
       let token = prefix + (n.note === "─" ? "-" : n.prefixAccidentals.join("").replaceAll("♯", "#").replaceAll("♭", "b") + n.note)
         + "^".repeat(Math.max(0, n.octave)) + ",".repeat(Math.max(0, -n.octave)) + (n.dotted ? "." : "")
         + (allDecorators.length ? `{${allDecorators.join(",")}}` : "");
