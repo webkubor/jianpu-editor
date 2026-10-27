@@ -12,7 +12,7 @@ import type { Notation, Paragraph, Score } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
 import { renderMusicSpans } from "./music-spans.ts";
 import { renderCueLayer } from "./cue-layer.ts";
-import { A4_PAGE, INLINE_CUE, paginateScore, type ScorePage } from "./pagination.ts";
+import { A4_PAGE, INLINE_CUE, paginateScore, spanGlyphBounds, type ScorePage } from "./pagination.ts";
 
 /** 排版常量（单位 px，基准字号 28） */
 export const LAYOUT = {
@@ -488,15 +488,14 @@ export function renderPageSvg(
     const sectionLabel = r.rowInPara === 0
       ? [para.heading, para.freeTime ? "散板" : para.meter?.join("/")].filter(Boolean).join(" · ")
       : "";
-    const headingSpace = sectionLabel ? 30 + Math.min(100,
-      (para.spans?.filter(span => !["crescendo", "diminuendo"].includes(span.kind)).length ?? 0) * 14) : 0;
+    const headingSpace = r.headingSpace ?? (sectionLabel ? 30 : 0);
     if (sectionLabel) {
       svg.appendChild(el("text", {
         x: A4_PAGE.marginLeft, y: yOffset - 22,
         "font-size": 15, "font-weight": 600, class: "section-heading",
       }, sectionLabel));
     }
-    const row = el("g", { class: "paragraph", "data-para": String(r.paraIndex), transform: `translate(0, ${yOffset + headingSpace})` });
+    const row = el("g", { class: "paragraph", "data-para": String(r.paraIndex), transform: `translate(0, ${yOffset + headingSpace + (r.topExtra ?? 0)})` });
 
     if (cursorPos && cursorPos.paragraph === r.paraIndex && cursorPos.itemIndex === 0 && r.rowInPara === 0) {
       row.appendChild(el("line", {
@@ -599,11 +598,9 @@ export function renderPageSvg(
     if (spans.length) {
       const positions = new Map<string, { x: number; top: number; bottom: number }>();
       rowGlyphs.forEach((g, index) => {
-        const techCount = Object.values(g.n.technique ?? {}).filter(Boolean).length + g.n.topDecorators.length;
         positions.set(g.n.key, {
           x: A4_PAGE.marginLeft + rowCenterX(rowGlyphs.map(item => item.width), index, flex),
-          top: Math.min(-24, -22 - Math.max(0, g.n.octave) * 6 - techCount * 14),
-          bottom: Math.max(g.n.dynamic ? 58 : 28, 22 + g.n.underline * 5 + Math.max(0, -g.n.octave) * 6, para.lyrics.length ? 44 : 0),
+          ...spanGlyphBounds(g.n, para.lyrics.length > 0),
         });
       });
       // 全谱顺序与当前视觉行求交，传入同一批跨度以保留同行避让通道。

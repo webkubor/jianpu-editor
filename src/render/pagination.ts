@@ -3,7 +3,7 @@
  * 标准 A4 纵向像素规格：宽 860px，高 1216px (约 1 : 1.414 标准比率)
  * 具备页眉（曲名、调号）、页脚（页码 第 X 页 / 共 Y 页）与自动跨页溢出折行
  */
-import type { Notation, Score } from "../core/model.ts";
+import type { MusicSpan, Notation, Score } from "../core/model.ts";
 import { BAR, DOUBLE_BAR, REPEAT_START, REPEAT_END } from "../core/model.ts";
 import { wrapRows } from "./layout.ts";
 
@@ -29,6 +29,10 @@ export interface LayoutRow {
   rowInPara: number;
   rowGlyphs: { n: Notation; width: number; core: number }[];
   rowHeight: number;
+  /** 分页计算并与绘制共用；可选以兼容外部手工构造的行。 */
+  headingSpace?: number;
+  topExtra?: number;
+  bottomExtra?: number;
   isLastRowOfPara: boolean;
   alignJustify: boolean;
   lyrics: string[];
@@ -53,6 +57,64 @@ export function estimateRowHeight(glyphs: { n: Notation }[], hasLyrics: boolean)
     if (n.volta) maxTechExtra = Math.max(maxTechExtra, 16);
   }
   return baseH + maxTechExtra;
+}
+
+/** 与跨度绘制共用完整字形边界，技巧/装饰按单音最大堆叠量预留。 */
+export function spanGlyphBounds(n: Notation, hasLyrics: boolean) {
+  const decorations = Object.values(n.technique ?? {}).filter(Boolean).length + n.topDecorators.length;
+  const graceTop = Math.max(0, ...(n.graceNotes ?? []).map(grace => Math.max(0, grace.octave) * 4 + 18));
+  return {
+    top: Math.min(-24, -22 - Math.max(0, n.octave) * 6 - decorations * 14, -graceTop, n.volta ? -36 : 0),
+    bottom: Math.max(n.dynamic ? 58 : 28, 22 + n.underline * 5 + Math.max(0, -n.octave) * 6, hasLyrics ? 44 : 0),
+  };
+}
+
+function rowSpanPadding(
+  glyphs: LayoutRow["rowGlyphs"], spans: MusicSpan[], order: Map<string, number>,
+  hasLyrics: boolean, justify: boolean,
+) {
+  const contentWidth = A4_PAGE.width - A4_PAGE.marginLeft - A4_PAGE.marginRight;
+  const totalWidth = glyphs.reduce((sum, glyph) => sum + glyph.width, 0);
+  const flex = justify && glyphs.length > 1 && totalWidth < contentWidth
+    ? (contentWidth - totalWidth) / (glyphs.length - 1) : 0;
+  let x = 0;
+  const centers = glyphs.map(glyph => { const center = x + glyph.width / 2; x += glyph.width + flex; return center; });
+  const first = order.get(glyphs[0]?.n.key) ?? -1;
+  const last = order.get(glyphs.at(-1)?.n.key ?? "") ?? -1;
+  const above: { left: number; right: number; depth: number }[] = [];
+  const below: typeof above = [];
+  // 按 renderMusicSpans 的输入顺序累积通道；仅求同时活动数会漏掉链式避让。
+  for (const span of spans) {
+    const start = order.get(span.startKey);
+    const end = order.get(span.endKey);
+    if (first < 0 || start === undefined || end === undefined || start === end) continue;
+    const low = Math.min(start, end), high = Math.max(start, end);
+    const leftIndex = Math.max(low, first), rightIndex = Math.min(high, last);
+    if (leftIndex > rightIndex) continue;
+    let left = centers[leftIndex - first], right = centers[rightIndex - first];
+    if (leftIndex === rightIndex) {
+      if (low < first) left -= glyphs[leftIndex - first].width / 2;
+      if (high > last) right += glyphs[rightIndex - first].width / 2;
+    }
+    const labelWidth = Array.from(span.label ?? (span.kind === "trill" ? "tr" : "3")).length * 14;
+    if (span.kind === "trill") right = Math.max(right, left + labelWidth + 12);
+    if (span.kind === "tuplet") {
+      const center = (left + right) / 2;
+      left = Math.min(left, center - labelWidth / 2 - 4);
+      right = Math.max(right, center + labelWidth / 2 + 4);
+    }
+    const lanes = span.kind === "crescendo" || span.kind === "diminuendo" ? below : above;
+    const depth = 1 + Math.max(0, ...lanes.filter(previous =>
+      left <= previous.right + 6 && right >= previous.left - 6).map(previous => previous.depth));
+    lanes.push({ left, right, depth });
+  }
+  const bounds = glyphs.map(glyph => spanGlyphBounds(glyph.n, hasLyrics));
+  return {
+    topExtra: Math.max(0, ...bounds.map(bound => -bound.top - 24)) +
+      (above.length ? 8 + Math.max(...above.map(lane => lane.depth)) * 30 : 0),
+    bottomExtra: Math.max(0, ...bounds.map(bound => bound.bottom - (hasLyrics ? 44 : 28))) +
+      Math.max(0, ...below.map(lane => lane.depth)) * 22,
+  };
 }
 
 /**
@@ -80,25 +142,22 @@ export function paginateScore<G extends { n: Notation; width: number; core: numb
     // 只有提示声部的段落也保留一个锚点行，避免空正文吞掉提示内容。
     if (!splitRows.length && para.cueLayers?.length) splitRows.push([]);
     const hasLyrics = para.lyrics.length > 0;
-    const first = noteOrder.get(para.notations[0]?.key) ?? -1;
-    const last = noteOrder.get(para.notations.at(-1)?.key ?? "") ?? -1;
-    const incomingSpans = allSpans.filter(span => {
-      const from = noteOrder.get(span.startKey) ?? -1;
-      const to = noteOrder.get(span.endKey) ?? -1;
-      return from < first && to >= first && from >= 0 && last >= 0;
-    }).length;
     splitRows.forEach((rowGlyphs, rowInPara) => {
       const isLastRowOfPara = rowInPara === splitRows.length - 1;
-      const rowHeight = estimateRowHeight(rowGlyphs, hasLyrics) +
-        (rowInPara === 0 && (para.heading || para.meter || para.freeTime)
-          ? 30 + Math.min(100, (para.spans?.filter(s => !["crescendo", "diminuendo"].includes(s.kind)).length ?? 0) * 14) : 0) +
-        Math.min(120, ((para.spans?.length ?? 0) + incomingSpans) * 18) +
+      const headingSpace = rowInPara === 0 && (para.heading || para.meter || para.freeTime) ? 30 : 0;
+      const totalWidth = rowGlyphs.reduce((sum, glyph) => sum + glyph.width, 0);
+      const { topExtra, bottomExtra } = rowSpanPadding(rowGlyphs, allSpans, noteOrder, hasLyrics,
+        para.alignJustify && (!isLastRowOfPara || totalWidth >= contentWidth * 0.65));
+      const rowHeight = estimateRowHeight(rowGlyphs, hasLyrics) + headingSpace + topExtra + bottomExtra +
         (isLastRowOfPara ? (para.cueLayers?.length ?? 0) * (INLINE_CUE.svgHeight + INLINE_CUE.metadataHeight) : 0);
       allRows.push({
         paraIndex,
         rowInPara,
         rowGlyphs: rowGlyphs as any,
         rowHeight,
+        headingSpace,
+        topExtra,
+        bottomExtra,
         isLastRowOfPara,
         alignJustify: para.alignJustify,
         lyrics: para.lyrics,
