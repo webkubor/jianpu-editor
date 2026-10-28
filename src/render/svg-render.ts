@@ -319,13 +319,15 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       techTopY -= 11;
     }
     if (tech.tonguing) {
+      // TK/T 是回放用的演奏指令，原图未印字母；只在谱面上方以小字提示，避免与印刷记号混淆。
       group.appendChild(el("text", {
         x: mainX,
         y: techTopY,
         "text-anchor": "middle",
         "dominant-baseline": "middle",
-        "font-size": 11,
-        "font-weight": 700,
+        "font-size": 9,
+        "font-weight": 600,
+        "fill": "var(--bloom-text-muted, #999)",
         class: "wind-tech-tonguing",
       }, tech.tonguing));
       techTopY -= 10;
@@ -424,7 +426,7 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
     techTopY -= 18;
   }
   // 独立减时线（连排横线由段落层连线绘制，未连排则画独立横线）
-  if (n.underline > 0) {
+  if (n.underline > 0 && !n.beamGroup) {
     const underX1 = mainX - geometry.digitWidth / 2;
     const underX2 = mainX + geometry.digitWidth / 2;
     for (let i = 0; i < n.underline; i += 1) {
@@ -606,6 +608,44 @@ export function renderPageSvg(
         }
       }
       x += g.width + flex;
+    });
+
+    // 减时线连排：原谱 16 分音符组以一条横线贯穿整组，逐音单独短线不还原原貌。
+    // 组内各音按其减时线层数分层，最少层数画满全组，最多层数只画对应音的短线。
+    const beamGroups = new Map<number, { indices: number[]; layers: number }>();
+    rowGlyphs.forEach((g, index) => {
+      const group = g.n.beamGroup;
+      if (group === undefined || !isPitchable(g.n) || g.n.underline <= 0) return;
+      const entry = beamGroups.get(group) ?? { indices: [], layers: 0 };
+      entry.indices.push(index);
+      entry.layers = Math.max(entry.layers, g.n.underline);
+      beamGroups.set(group, entry);
+    });
+    beamGroups.forEach(({ indices, layers }) => {
+      if (indices.length < 2) return;
+      const widths = rowGlyphs.map(item => item.width);
+      const centerOf = (i: number) => A4_PAGE.marginLeft + rowCenterX(widths, i, flex);
+      const half = (i: number) => noteGeometry(rowGlyphs[i].n).digitWidth / 2;
+      for (let layer = 0; layer < layers; layer += 1) {
+        const y = LAYOUT.underlineY0 + layer * LAYOUT.underlineStep;
+        // 第一层贯穿全组；更高层按相邻音连成段，孤立的十六分音画本音短线。
+        let run: number[] = [];
+        const flush = () => {
+          if (!run.length) return;
+          const a = run[0], b = run[run.length - 1];
+          row.appendChild(el("line", {
+            x1: centerOf(a) - half(a), x2: centerOf(b) + half(b), y1: y, y2: y,
+            stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round",
+            class: `underline-line underline-layer-${layer} beam-line`,
+          }));
+          run = [];
+        };
+        for (const i of indices) {
+          if (rowGlyphs[i].n.underline > layer) run.push(i);
+          else flush();
+        }
+        flush();
+      }
     });
 
     // 三连音括弧排版

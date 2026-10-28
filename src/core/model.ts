@@ -77,6 +77,8 @@ export interface Notation {
   underline: number;
   /** 禁止与前一音符的减时线连排 */
   breakUnderline: boolean;
+  /** 减时线连排组：同组音符共用一条横线（原谱 16 分音符连排）；undefined 表示独立短线 */
+  beamGroup?: number;
   /** 前缀升降号 */
   prefixAccidentals: Accidental[];
   /** 顶部装饰符 */

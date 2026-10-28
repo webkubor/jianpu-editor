@@ -73,14 +73,16 @@ function synthesize(score: Score) {
 const attacks = (result: ReturnType<typeof synthesize>) => result.envelopes.map(points =>
   Math.round((points[1].time - points[0].time) * 1000));
 
-test("metadata produces alternating T/K envelopes without changing events or highlighting", () => {
+test("metadata produces alternating T/K envelopes; tongued notes keep full printed value", () => {
   const notes = Array.from({ length: 8 }, () => tongued({ topDecorators: ["▼"] }));
   const score = scoreOf(...notes);
   const before = JSON.stringify(score);
   const result = synthesize(score);
+  // ▼ 为吐音记号：带 T/K 指令时不按跳音缩短，起点与光标仍与无指令时一致。
   const plain = compileEvents(scoreOf(...notes.map(note => ({ ...note, technique: undefined }))));
-  assert.deepEqual(result.events.map(event => Object.fromEntries(Object.entries(event))), plain);
-  assert.equal(JSON.stringify(result.events), JSON.stringify(plain));
+  assert.deepEqual(result.events.map(event => [event.start, event.index, event.midi]),
+    plain.map(event => [event.start, event.index, event.midi]));
+  assert.deepEqual(result.events.map(event => event.duration), Array(8).fill(0.25));
   assert.equal(JSON.stringify(score), before);
   assert.deepEqual(attacks(result), [5, 12, 5, 12, 5, 12, 5, 12]);
   assert.ok(result.envelopes[1][1].value < result.envelopes[0][1].value);
@@ -127,7 +129,7 @@ test("tongued ties and extensions keep one sounding event and original cursor ev
   const first = tongued({ tieTo: target.key });
   const result = synthesize(scoreOf(first, target, createExtend(), createNote()));
   assert.equal(result.events.length, 4);
-  assert.equal(result.events[0].duration, 1.5 * 0.92);
+  assert.equal(result.events[0].duration, 1.5);
   assert.deepEqual(result.events.map(event => [event.start, event.index, event.midi]), [
     [0, 0, 60], [0.25, 1, null], [0.5, 2, null], [1.5, 3, 60],
   ]);

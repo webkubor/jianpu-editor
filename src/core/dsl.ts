@@ -430,6 +430,35 @@ export function compileLine(line: string): Paragraph {
   const { tokens, beatBreaks } = tokenizeLine(line);
   const { notations, lyrics } = compileTokens(tokens, beatBreaks);
   const para = createParagraph(notations);
+  // 减时线连排：按原谱惯例同一拍内的减时线音符共享横线（第一层贯穿全组，更高层只连对应音）。
+  // 拍位按小节线清零计算；休止、延音线、小节线与 breakUnderline 均断开连排。
+  let beamSeq = 0;
+  let group: Notation[] = [];
+  let groupBeat = -1;
+  let elapsed = 0;
+  const flushBeam = () => {
+    if (group.length >= 2) {
+      beamSeq += 1;
+      for (const n of group) n.beamGroup = beamSeq;
+    }
+    group = [];
+  };
+  for (const n of notations) {
+    if (n.note === "│" || n.note === "‖" || n.note === "||:" || n.note === ":||") {
+      flushBeam();
+      elapsed = 0;
+      continue;
+    }
+    const beats = n.note === EXTEND ? 1 : (n.beatFrac ?? 1 / 2 ** Math.min(3, n.underline)) * (n.dotted ? 1.5 : 1);
+    const beat = Math.floor(elapsed + 1e-6);
+    if (!(isSounding(n) && n.note !== EXTEND && n.underline >= 1) || n.breakUnderline || beat !== groupBeat) flushBeam();
+    if (isSounding(n) && n.note !== EXTEND && n.underline >= 1) {
+      group.push(n);
+      groupBeat = beat;
+    }
+    elapsed += beats;
+  }
+  flushBeam();
   if (lyrics) para.lyrics = lyrics;
   return para;
 }

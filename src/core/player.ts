@@ -199,8 +199,11 @@ function compileLinearEvents(score: Score): PlayEvent[] {
           beats += noteBeats(next);
         }
         // 演奏法修饰时值系数：顿音/跳音(▾/▼)短促发声(约40%)；保持音(⌒)饱满发声(约98%)；延长音(𝄐)自然延续
+        // 带吐音指令(T/TK)的音符按原谱为「吐音」记号而非跳音，实占满印刷时值，双吐靠起音交替区分。
         let durFactor = 0.92;
-        if (n.topDecorators && n.topDecorators.length > 0) {
+        if (n.technique?.tonguing) {
+          durFactor = 1;
+        } else if (n.topDecorators && n.topDecorators.length > 0) {
           if (n.topDecorators.includes("▾") || n.topDecorators.includes("▼")) durFactor = 0.45;
           else if (n.topDecorators.includes("⌒")) durFactor = 0.98;
         }
