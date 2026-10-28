@@ -54,21 +54,22 @@ for (const [sourceRow, start, end] of [[2, 0, 6], [3, 16, 23]]) {
     assert.deepEqual(validateScore(score), validateScore(automatic));
   });
 
-  test(`page 1 row ${sourceRow} skips the override if pitch, octave, or underline guards fail`, () => {
+  test(`page 1 row ${sourceRow} declares its printed beam group as data, not as engine code`, () => {
     const row = page1Rows.find(row => row.sourceRow === sourceRow)!;
-    const dsl = row.dsl;
-    const tokens = dsl.split(" ");
-    const token = tokens[start];
-    const variants = [token.replace(/^[1-7]/, "4"), token.replace("^", ""), token.replace("/2", "/1")];
-    try {
-      for (const variant of variants) {
-        row.dsl = tokens.map((value, i) => i === start ? variant : value).join(" ");
-        const { score, review } = createMuminDraft();
-        const para = score.paragraphs[review.findIndex(r => r.page === 1 && r.row === sourceRow)];
-        assert.deepEqual(para.notations.map(n => n.beamGroup), compileLine(row.dsl).notations.map(n => n.beamGroup));
-      }
-    } finally {
-      row.dsl = dsl;
-    }
+    // 连排组写在转录数据里（beams 字段），与任何其他曲目走同一条通用路径。
+    assert.deepEqual(row.beams, [{ start, end: start + (sourceRow === 2 ? 5 : 6) }]);
+    const { score, review } = createMuminDraft();
+    const para = score.paragraphs[review.findIndex(r => r.page === 1 && r.row === sourceRow)];
+    const declared = para.beamGroups ?? [];
+    assert.equal(declared.length, 1, "声明一个连排组");
+    const s = para.notations.findIndex(n => n.key === declared[0].startKey);
+    const e = para.notations.findIndex(n => n.key === declared[0].endKey);
+    const groups = para.notations.slice(s, e + 1).map(n => n.beamGroup);
+    assert.equal(new Set(groups).size, 1, "声明区间共用一个连排组");
+    // 区间外不得沿用该组号，连线不会越过声明边界。
+    para.notations.forEach((n, i) => {
+      if (i >= s && i <= e) return;
+      assert.notEqual(n.beamGroup, groups[0]);
+    });
   });
 }

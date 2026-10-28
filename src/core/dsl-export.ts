@@ -65,6 +65,14 @@ export function toDsl(score: Score): string {
       if (n.note !== "0") words.push(para.lyrics[words.length] ?? "");
     }
     lines.push(tokens.join("  "));
+    // 显式声明的印刷连排组：@beams [{start,end}]，下标指向本段符号（含首尾）。
+    const localBeams = (para.beamGroups ?? [])
+      .map(group => ({
+        start: para.notations.findIndex(n => n.key === group.startKey),
+        end: para.notations.findIndex(n => n.key === group.endKey),
+      }))
+      .filter(b => b.start >= 0 && b.end >= 0);
+    if (localBeams.length) lines.push(`@beams ${JSON.stringify(localBeams)}`);
     const localSpans = para.spans?.filter(span => para.notations.some(n => n.key === span.endKey));
     if (localSpans?.length) {
       lines.push(`@spans ${JSON.stringify(localSpans.map(span => ({
@@ -75,7 +83,7 @@ export function toDsl(score: Score): string {
     if (words.some(Boolean)) lines.push(`[词:${words.map((w) => w || "-").join(" ")}]`);
     for (const layer of para.cueLayers ?? []) {
       const cueDsl = toDsl({ ...score, paragraphs: [{ ...para, heading: undefined, meter: undefined,
-        freeTime: undefined, spans: undefined, cueLayers: undefined, lyrics: [], notations: layer.notations }] });
+        freeTime: undefined, spans: undefined, beamGroups: undefined, cueLayers: undefined, lyrics: [], notations: layer.notations }] });
       lines.push(`@cue ${JSON.stringify({ label: layer.label, startBeat: layer.startBeat, timelineBeats: layer.timelineBeats,
         ...(layer.resumeKey ? { resume: para.notations.findIndex(n => n.key === layer.resumeKey) } : {}), dsl: cueDsl })}`);
     }

@@ -101,6 +101,14 @@ export function deserializeScore(json: string): Score | null {
             (span.label !== undefined && typeof span.label !== "string")) return null;
         }
       }
+      if (paragraph.beamGroups !== undefined) {
+        if (!Array.isArray(paragraph.beamGroups)) return null;
+        const noteKeys = new Set(paragraph.notations.map((n: Notation) => n.key));
+        for (const group of paragraph.beamGroups) {
+          if (!group || typeof group.startKey !== "string" || typeof group.endKey !== "string" ||
+            !noteKeys.has(group.startKey) || !noteKeys.has(group.endKey)) return null;
+        }
+      }
       if (!paragraph.notations.every((n: unknown) => validateNotation(n, keys))) return null;
       if (paragraph.cueLayers !== undefined) {
         if (!Array.isArray(paragraph.cueLayers)) return null;
@@ -127,6 +135,7 @@ export function deserializeScore(json: string): Score | null {
         ...(p.meter !== undefined ? { meter: [p.meter[0], p.meter[1]] as [number, number] } : {}),
         ...(p.freeTime !== undefined ? { freeTime: p.freeTime } : {}),
         ...(p.spans !== undefined ? { spans: p.spans.map(span => ({ ...span })) } : {}),
+        ...(p.beamGroups !== undefined ? { beamGroups: p.beamGroups.map(group => ({ ...group })) } : {}),
         alignJustify: Boolean(p.alignJustify ?? true),
         lyrics: Array.isArray(p.lyrics) ? p.lyrics.map(String) : [],
         notations: (p.notations ?? []).map(deserializeNotation),

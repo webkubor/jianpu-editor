@@ -110,6 +110,17 @@ export interface MusicSpan {
   label?: string;
 }
 
+/**
+ * 印刷连排减时线组（连排减时线）：同组音符共用一条横线。
+ * 与具体曲目无关：任何谱面都可用 @beams 指令声明，缺省按拍位自动连排。
+ */
+export interface BeamGroup {
+  /** 组首音符键 */
+  startKey: string;
+  /** 组尾音符键（含） */
+  endKey: string;
+}
+
 /** 段落（一行乐谱） */
 export interface Paragraph {
   key: string;
@@ -122,6 +133,11 @@ export interface Paragraph {
   freeTime?: boolean;
   /** 乐句弧、力度发夹、持续颤音与连音组 */
   spans?: MusicSpan[];
+  /**
+   * 显式声明的印刷连排减时线组（@beams）；缺省按拍位自动连排。
+   * 声明后该区间成为一个连排组，区间外的自动组在边界处断开。
+   */
+  beamGroups?: BeamGroup[];
   /** 独立提示声部，与主旋律共享时间轴，不追加到主旋律符号中 */
   cueLayers?: {
     label: string;

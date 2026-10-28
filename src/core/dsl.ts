@@ -15,7 +15,7 @@
  *   为兼容手滑，也把 | 与 - 视为组边界。
  */
 
-import { BAR, createBar, createExtend, createNote, createParagraph, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, createScore } from "./model.ts";
+import { BAR, createBar, createExtend, createNote, createParagraph, DOUBLE_BAR, EXTEND, REPEAT_START, REPEAT_END, createScore, isPitchable } from "./model.ts";
 import type { GraceNote, NoteDigit, Notation, Paragraph, Score, WindTechnique } from "./model.ts";
 
 /** 词法单元 */
@@ -431,19 +431,43 @@ export function compileLine(line: string): Paragraph {
   const { notations, lyrics } = compileTokens(tokens, beatBreaks);
   const para = createParagraph(notations);
   // 减时线连排：按原谱惯例同一拍内的减时线音符共享横线（第一层贯穿全组，更高层只连对应音）。
-  // 拍位按小节线清零计算；休止、延音线、小节线与 breakUnderline 均断开连排。
+  const ids = autoBeamGroupIds(notations);
+  notations.forEach((n, i) => { if (ids[i] !== undefined) n.beamGroup = ids[i]; });
+  if (lyrics) para.lyrics = lyrics;
+  return para;
+}
+
+/**
+ * 一段连排声明：段落内符号下标（含首尾）。
+ * 与具体曲目无关：任何谱面都可用 @beams 声明印刷连排减时线组。
+ */
+export interface BeamRange {
+  /** 组首符号下标（含） */
+  start: number;
+  /** 组尾符号下标（含） */
+  end: number;
+}
+
+/**
+ * 自动连排分组：同一拍内的减时线音符共享一条横线。
+ * 拍位按小节线清零计算；休止、延音线、小节线与 breakUnderline 均断开连排。
+ * 返回每个符号的组号（不属于任何组为 undefined）；不改动词符。
+ */
+export function autoBeamGroupIds(notations: Notation[]): (number | undefined)[] {
+  const ids: (number | undefined)[] = new Array(notations.length).fill(undefined);
   let beamSeq = 0;
-  let group: Notation[] = [];
+  let group: number[] = [];
   let groupBeat = -1;
   let elapsed = 0;
   const flushBeam = () => {
     if (group.length >= 2) {
       beamSeq += 1;
-      for (const n of group) n.beamGroup = beamSeq;
+      for (const i of group) ids[i] = beamSeq;
     }
     group = [];
   };
-  for (const n of notations) {
+  for (let i = 0; i < notations.length; i += 1) {
+    const n = notations[i];
     if (n.note === "│" || n.note === "‖" || n.note === "||:" || n.note === ":||") {
       flushBeam();
       elapsed = 0;
@@ -453,14 +477,86 @@ export function compileLine(line: string): Paragraph {
     const beat = Math.floor(elapsed + 1e-6);
     if (!(isSounding(n) && n.note !== EXTEND && n.underline >= 1) || n.breakUnderline || beat !== groupBeat) flushBeam();
     if (isSounding(n) && n.note !== EXTEND && n.underline >= 1) {
-      group.push(n);
+      group.push(i);
       groupBeat = beat;
     }
     elapsed += beats;
   }
   flushBeam();
-  if (lyrics) para.lyrics = lyrics;
-  return para;
+  return ids;
+}
+
+/**
+ * 应用声明的连排组：每个声明区间各自成为一个连排组（组号全新，不与自动组混用）。
+ * 与声明区间同属旧自动组、却落在区间外的连续段各自独立成组，
+ * 使连线不会越过声明边界；与声明区间无关的自动组保持原样。
+ * baseline 为自动分组结果（应用声明前的组号），缺省按当前符号重算。
+ */
+export function applyDeclaredBeamGroups(
+  notations: Notation[],
+  ranges: BeamRange[],
+  baseline: (number | undefined)[] = autoBeamGroupIds(notations),
+): void {
+  const inRange = (i: number) => ranges.some(r => i >= r.start && i <= r.end);
+  // 被声明区间打断过的自动组：它们在区间外的残余需要拆成独立组。
+  const touched = new Set<number>();
+  for (const r of ranges) {
+    for (let i = r.start; i <= r.end; i += 1) {
+      const g = baseline[i];
+      if (g !== undefined) touched.add(g);
+    }
+  }
+  let nextId = 0;
+  for (const g of baseline) if (g !== undefined && g > nextId) nextId = g;
+  for (const r of ranges) {
+    nextId += 1;
+    for (let i = r.start; i <= r.end; i += 1) notations[i].beamGroup = nextId;
+  }
+  let previousOld: number | undefined;
+  let segmentId = nextId;
+  for (let i = 0; i < notations.length; i += 1) {
+    const old = baseline[i];
+    if (inRange(i)) {
+      previousOld = undefined;
+      continue;
+    }
+    if (old !== undefined && touched.has(old)) {
+      if (previousOld !== old) {
+        nextId += 1;
+        segmentId = nextId;
+      }
+      previousOld = old;
+      notations[i].beamGroup = segmentId;
+      continue;
+    }
+    previousOld = undefined;
+  }
+}
+
+/**
+ * 校验 @beams 声明：每项须为 {start,end}，指向本段存在的符号（含首尾）。
+ * 区间至少两个符号；区间之间（含本段已有声明）不得重叠。
+ */
+function parseBeamRanges(declared: unknown[], para: Paragraph, existing: BeamRange[] = []): BeamRange[] {
+  const total = para.notations.length;
+  const ranges: BeamRange[] = [];
+  for (const item of declared) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new SyntaxError("连排组须为 {start,end} 对象");
+    const { start, end } = item as { start?: unknown; end?: unknown };
+    if (!Number.isInteger(start) || !Number.isInteger(end)) throw new SyntaxError("连排组端点须为整数");
+    const s = start as number, e = end as number;
+    if (s < 0 || e < 0 || s >= total || e >= total) throw new SyntaxError("连排组端点超出本段符号范围");
+    if (s > e) throw new SyntaxError("连排组起点不能晚于终点");
+    if (e - s + 1 < 2) throw new SyntaxError("连排组至少包含两个符号");
+    // 连排横线只连接带减时线的音符：区间内出现休止、延音线或无减时线音符时报错。
+    for (let i = s; i <= e; i += 1) {
+      const n = para.notations[i];
+      if (!isPitchable(n) || n.underline < 1) throw new SyntaxError("连排组只能包含带减时线的音符");
+    }
+    if ([...ranges, ...existing].some(r => s <= r.end && r.start <= e)) throw new SyntaxError("连排组区间不得重叠");
+    ranges.push({ start: s, end: e });
+  }
+  return ranges;
 }
 
 /** 编译整份 DSL 文本 → 乐谱：音符行分段；[词:…] 行修饰其上方最近的音符行（可多行叠加） */
@@ -469,6 +565,19 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
   const paras: Paragraph[] = [];
   let pendingSection: Partial<Pick<Paragraph, "heading" | "meter" | "freeTime">> | undefined;
   const crossSpans: { kind: NonNullable<Paragraph["spans"]>[number]["kind"]; start: [number, number]; end: [number, number]; label?: string }[] = [];
+  // 段落 → 已声明的连排区间；同一段多条 @beams 汇总后一次性套用。
+  const pendingBeams = new Map<Paragraph, BeamRange[]>();
+  /** 把段落已声明的连排区间套用到符号上并回写 beamGroups。 */
+  const applyPendingBeams = (para: Paragraph) => {
+    const ranges = pendingBeams.get(para);
+    if (!ranges?.length) return;
+    pendingBeams.delete(para);
+    applyDeclaredBeamGroups(para.notations, ranges);
+    para.beamGroups = ranges.map(range => ({
+      startKey: para.notations[range.start].key,
+      endKey: para.notations[range.end].key,
+    }));
+  };
   for (const raw of dsl.split(/\n/)) {
     const line = raw.trim();
     if (line === "") continue;
@@ -511,6 +620,18 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
       });
       continue;
     }
+    if (line.startsWith("@beams ")) {
+      const target = paras.at(-1);
+      const declared: unknown = JSON.parse(line.slice(7));
+      if (!target) throw new SyntaxError("连排组须在音符行后指定数组");
+      if (!Array.isArray(declared)) throw new SyntaxError("连排组须在音符行后指定数组");
+      // 同一段可多次声明；先汇总全部区间再一次性套用，避免后一次覆盖前一次。
+      const pending = pendingBeams.get(target) ?? [];
+      const ranges = parseBeamRanges(declared, target, pending);
+      pending.push(...ranges);
+      pendingBeams.set(target, pending);
+      continue;
+    }
     if (line.startsWith("@section ")) {
       const metadata: unknown = JSON.parse(line.slice(9));
       if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) throw new SyntaxError("段落元数据须为对象");
@@ -543,8 +664,11 @@ export function compileScore(dsl: string, base?: Partial<Score>): Score {
     const paragraph = compileLine(line);
     if (pendingSection) Object.assign(paragraph, pendingSection);
     pendingSection = undefined;
+    // 新音符行开始前，先把上一段已声明的连排区间落地。
+    if (paras.length) applyPendingBeams(paras[paras.length - 1]);
     paras.push(paragraph);
   }
+  if (paras.length) applyPendingBeams(paras[paras.length - 1]);
   for (const span of crossSpans) {
     const from = paras[span.start[0]]?.notations[span.start[1]];
     const to = paras[span.end[0]]?.notations[span.end[1]];

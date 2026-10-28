@@ -1,6 +1,6 @@
 /** 逐图转录工作稿；未加入正式曲库。疑点未清零前不得标为已校对全谱。 */
-import { compileLine } from "./dsl.ts";
-import { createScore, type Paragraph } from "./model.ts";
+import { compileScore } from "./dsl.ts";
+import { createScore } from "./model.ts";
 import { page1Rows } from "./mumin-page1.ts";
 import { page2Rows } from "./mumin-page2.ts";
 import { page3Rows } from "./mumin-page3.ts";
@@ -8,40 +8,6 @@ import { page4Rows } from "./mumin-page4.ts";
 import { annotateMuminSpans } from "./mumin-spans.ts";
 import { attachMuminCues } from "./mumin-cues.ts";
 import { attachMuminWindMarks } from "./mumin-wind-marks.ts";
-
-/** 主图散板的两组双通线不按自动拍位拆开；音高/八度/线数不符时保留编译结果。 */
-function restoreFreeBeams(para: Paragraph, sourceRow: number): void {
-  const target = sourceRow === 2
-    ? { start: 0, pitches: ["1", "6", "5", "6", "6", "5"], octaves: [1, 0, 0, 0, 0, 0] }
-    : sourceRow === 3
-      ? { start: 16, pitches: ["3", "2", "3", "2", "7", "2", "7"], octaves: [1, 1, 1, 1, 0, 1, 0] }
-      : undefined;
-  if (!target) return;
-  const { start, pitches, octaves } = target;
-  const end = start + pitches.length;
-  const notes = para.notations;
-  if (!pitches.every((pitch, i) => notes[start + i]?.note === pitch &&
-      notes[start + i].octave === octaves[i] && notes[start + i].underline === 2)) return;
-  const oldGroups = new Set(notes.slice(start, end).flatMap(n => n.beamGroup === undefined ? [] : [n.beamGroup]));
-  let nextGroup = Math.max(0, ...notes.map(n => n.beamGroup ?? 0));
-  const targetGroup = ++nextGroup;
-  let previousOld: number | undefined;
-  let segmentGroup = targetGroup;
-  para.notations = notes.map((n, i) => {
-    if (i >= start && i < end) {
-      previousOld = undefined;
-      return { ...n, beamGroup: targetGroup };
-    }
-    // 旧组在范围外留下的连续段各自独立，保留段内连线，避免越过新组再相连。
-    if (n.beamGroup !== undefined && oldGroups.has(n.beamGroup)) {
-      if (previousOld !== n.beamGroup) segmentGroup = ++nextGroup;
-      previousOld = n.beamGroup;
-      return { ...n, beamGroup: segmentGroup };
-    }
-    previousOld = undefined;
-    return n;
-  });
-}
 
 export function createMuminDraft() {
   const pages = [page1Rows, page2Rows, page3Rows, page4Rows];
@@ -53,8 +19,8 @@ export function createMuminDraft() {
   });
   let activeMeter: [number, number] = [4, 4];
   score.paragraphs = pages.flatMap((rows, pageIndex) => rows.map(row => {
-    const para = compileLine(row.dsl);
-    if (pageIndex === 0) restoreFreeBeams(para, row.sourceRow);
+    const para = compileScore(row.dsl + ("beams" in row && row.beams?.length
+      ? `\n@beams ${JSON.stringify(row.beams)}` : "")).paragraphs[0];
     const heading = `对照图${pageIndex + 1}·第${row.sourceRow}行${row.heading ? ` · ${row.heading}` : ""}`;
     para.heading = heading;
     if ("freeTime" in row) para.freeTime = row.freeTime;
