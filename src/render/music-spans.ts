@@ -9,6 +9,7 @@ export type MusicSpan = {
   kind: "slur" | "slide" | "crescendo" | "diminuendo" | "trill" | "tuplet";
   startKey: string;
   endKey: string;
+  /** 省略时使用默认标签；连音组空字符串表示无数字的续接括号。 */
   label?: string;
 };
 
@@ -83,7 +84,7 @@ function place(
   const start = Math.min(first.x, last.x);
   const end = Math.max(first.x, last.x);
   const label = span.label ?? (span.kind === "trill" ? "tr" : "3");
-  const width = span.kind === "trill" || span.kind === "tuplet" ? labelWidth(row, label) : 0;
+  const width = label !== "" && (span.kind === "trill" || span.kind === "tuplet") ? labelWidth(row, label) : 0;
   const center = (start + end) / 2;
   const left = span.kind === "tuplet" ? Math.min(start, center - width / 2 - 4) : start;
   const right = span.kind === "trill" ? Math.max(end, start + width + 12)
@@ -172,6 +173,10 @@ function draw(row: SVGGElement, span: MusicSpan, p: Placement): SVGGElement {
     case "tuplet": {
       const center = (start + end) / 2;
       const y = bottom - 9;
+      if (p.label === "") {
+        group.appendChild(path(row, `M ${start} ${bottom} L ${start} ${y} L ${end} ${y} L ${end} ${bottom}`));
+        break;
+      }
       const gap = p.labelWidth / 2 + 4;
       let d = `M ${start} ${bottom} L ${start} ${y}`;
       if (center - gap > start) d += ` L ${center - gap} ${y}`;

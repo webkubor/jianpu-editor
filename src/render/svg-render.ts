@@ -174,7 +174,7 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
       class: "extend-line",
     }));
   } else {
-    // 前置倚音小音符渲染（如 ⁵ 或 ³⁵，位于左上方，带小斜线与小圆弧连线）
+    // 前置倚音小音符渲染（如 ⁵ 或 ³⁵，位于左上方，带贯穿全组的双减时线与独立连弧）
     if (n.graceNotes && n.graceNotes.length > 0) {
       const startGx = -g.core / 2;
       let graceCursor = startGx;
@@ -206,10 +206,13 @@ function renderGlyph(g: Glyph, x: number, y: number, selected: boolean): SVGGEle
             class: "grace-mordent", "aria-label": "倚音波音",
           }));
         }
-        // 倚音下方的双微型减时线
-        group.appendChild(el("line", { x1: gx - 4, y1: gy + 7, x2: gx + 4, y2: gy + 7, stroke: "currentColor", "stroke-width": 0.9 }));
-        group.appendChild(el("line", { x1: gx - 4, y1: gy + 9.5, x2: gx + 4, y2: gy + 9.5, stroke: "currentColor", "stroke-width": 0.9 }));
       });
+      // 双减时线贯穿整个倚音组（含变音号宽度，排除末尾间隙）。
+      const graceEndX = graceCursor - 4;
+      for (const beamY of [-3, -0.5]) {
+        group.appendChild(el("line", { x1: startGx, y1: beamY, x2: graceEndX, y2: beamY,
+          stroke: "currentColor", "stroke-width": 0.9 }));
+      }
       // 倚音到主音的小连弧线
       const arcEndX = mainX - geometry.digitWidth / 2;
       group.appendChild(el("path", {
@@ -719,7 +722,8 @@ export function renderPageSvg(
             positions.set(endKey, { ...position, x: position.x + glyph.width / 2 });
           }
         }
-        return [{ ...span, startKey, endKey }];
+        return [{ ...span, startKey, endKey,
+          label: span.kind === "tuplet" && (start < first || start > last) ? "" : span.label }];
       });
       renderMusicSpans(row, visibleSpans, positions);
     }

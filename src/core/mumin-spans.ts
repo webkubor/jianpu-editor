@@ -271,7 +271,7 @@ export function annotateMuminSpans(page: number, sourceRow: number, para: Paragr
       curve("slur", 9, "5/0 6/0");
       // 两版原速tr波浪线均从第4小节首6延至第6小节首6附近；弧线分别覆盖长音组。
       curve("trill", 14, "6/0 ─/0 │/0 6/0 ─/0 │/0 6/0");
-      curve("slur", 14, "6/0 ─/0");
+      curve("slur", 14, "6/0 ─/0 │/0 6/0");
       curve("slur", 17, "6/0 ─/0 │/0 6/0");
     }
   }
