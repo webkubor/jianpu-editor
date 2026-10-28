@@ -33,6 +33,28 @@ export interface PlayEvent {
   paragraph: number;
 }
 
+// 吐音只影响合成包络，不增加公开事件字段或改变 MIDI/光标时间轴。
+const articulation = Symbol("articulation");
+type ArticulatedEvent = PlayEvent & { [articulation]?: "T" | "K" };
+
+/** 按同拍内连续十六分音符的位置交替吐音；休止、分组断开与小节线重置。 */
+function paragraphArticulations(para: Paragraph, starts: number[]): Map<Notation, "T" | "K"> {
+  const result = new Map<Notation, "T" | "K">();
+  let group = -1;
+  let noteIndex = 0;
+  for (const [index, note] of para.notations.entries()) {
+    const beat = Math.floor(starts[index] + 1e-8);
+    const sixteenth = isPitchable(note) && Math.abs(noteBeats(note) - 0.25) < 1e-8;
+    if (!sixteenth || note.breakUnderline || beat !== group) noteIndex = 0;
+    if (isPitchable(note) && note.technique?.tonguing) {
+      result.set(note, noteIndex % 2 === 0 ? "T" : "K");
+    }
+    if (sixteenth) noteIndex += 1;
+    group = beat;
+  }
+  return result;
+}
+
 /** 把演奏事件序列转为单轨 MIDI（format 0）。速度取自乐谱，音色用大钢琴（program 0）。 */
 export function toMidi(events: PlayEvent[], speed: number): Uint8Array {
   const TPQ = 480; // 每四分音符 tick 数
@@ -136,6 +158,7 @@ function compileLinearEvents(score: Score): PlayEvent[] {
   score.paragraphs.forEach((para, paraIdx) => {
     const paragraphStart = t;
     const timing = paragraphTiming(para);
+    const syllables = paragraphArticulations(para, timing.starts);
     // 已被前面连音合并的符号不再发声（光标事件已在合并时补发）
     const merged = new Set<Notation>();
     para.notations.forEach((n, idx) => {
@@ -181,7 +204,11 @@ function compileLinearEvents(score: Score): PlayEvent[] {
           if (n.topDecorators.includes("▾") || n.topDecorators.includes("▼")) durFactor = 0.45;
           else if (n.topDecorators.includes("⌒")) durFactor = 0.98;
         }
-        events.push({ start: t, duration: beats * secPerBeat * durFactor, midi, index: idx, paragraph: paraIdx });
+        const event: ArticulatedEvent = { start: t, duration: beats * secPerBeat * durFactor, midi, index: idx, paragraph: paraIdx };
+        const syllable = syllables.get(n);
+        // 可枚举 Symbol 随播放起点调整的对象展开保留，JSON/MIDI 与公开字段不变。
+        if (syllable) event[articulation] = syllable;
+        events.push(event);
         t += beats * secPerBeat;
         // 被合并的后继不发新音，但在各自起点保留原符号下标供光标经过。
         for (const used of consumed) {
@@ -359,10 +386,15 @@ export class Player {
       // 音色：基频 + 2次泛音（音量 0.12/0.04）+ 短Attack/Release
       const freq = 440 * 2 ** ((ev.midi - 69) / 12);
       const gain = ctx.createGain();
-      const peakVol = 0.14 * this.volumeLevel;
+      const syllable = (ev as ArticulatedEvent)[articulation];
+      const peakVol = 0.14 * this.volumeLevel * (syllable === "K" ? 0.85 : 1);
+      const attack = syllable === "T" ? 0.005 : syllable === "K" ? 0.012 : 0.02;
+      // 极短音也保持包络时间单调；吐音只在原有发声窗口内塑形。
+      const attackEnd = Math.min(attack, ev.duration * 0.5);
+      const releaseStart = syllable === "T" ? 0.65 : syllable === "K" ? 0.75 : 0.7;
       gain.gain.setValueAtTime(0, at);
-      gain.gain.linearRampToValueAtTime(peakVol, at + 0.02);
-      gain.gain.setValueAtTime(peakVol, at + ev.duration * 0.7);
+      gain.gain.linearRampToValueAtTime(peakVol, at + attackEnd);
+      gain.gain.setValueAtTime(peakVol, at + ev.duration * releaseStart);
       gain.gain.linearRampToValueAtTime(0.0001, at + ev.duration);
       gain.connect(ctx.destination);
       for (const [mult, vol] of [[1, 1], [2, 0.3], [3, 0.12]] as const) {
