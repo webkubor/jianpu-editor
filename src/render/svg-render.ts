@@ -709,20 +709,22 @@ export function renderPageSvg(
         if (left > right) return [];
         let startKey = notations[left].key;
         let endKey = notations[right].key;
-        // 单音交集也有续接段：使用稳定的行边界锚点，避免零宽跨度消失。
-        if (left === right) {
+        // 续接段使用视觉行边缘锚点，起止高度由 continues 标志维持，不再画独立小拱。
+        const continuesLeft = low < first;
+        const continuesRight = high > last;
+        if (continuesLeft) {
           const position = positions.get(startKey)!;
-          const glyph = rowGlyphs.find(g => g.n.key === startKey)!;
-          if (low < first) {
-            startKey += ":span-before";
-            positions.set(startKey, { ...position, x: position.x - glyph.width / 2 });
-          }
-          if (high > last) {
-            endKey += ":span-after";
-            positions.set(endKey, { ...position, x: position.x + glyph.width / 2 });
-          }
+          startKey += ":span-before";
+          positions.set(startKey, { ...position, x: A4_PAGE.marginLeft - 6 });
         }
-        return [{ ...span, startKey, endKey,
+        if (continuesRight) {
+          const position = positions.get(endKey)!;
+          endKey += ":span-after";
+          positions.set(endKey, { ...position, x: A4_PAGE.marginLeft + totalWidth + flex * (rowGlyphs.length - 1) + 6 });
+        }
+        // 视觉锚点已按左到右排序，保留反向箭头语义。
+        if (start > end) [startKey, endKey] = [endKey, startKey];
+        return [{ ...span, startKey, endKey, continuesLeft, continuesRight,
           label: span.kind === "tuplet" && (start < first || start > last) ? "" : span.label }];
       });
       renderMusicSpans(row, visibleSpans, positions);

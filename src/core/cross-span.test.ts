@@ -93,8 +93,8 @@ test("SVG clips outgoing, incoming and intermediate spans across paragraphs/page
   const score = fixture();
   const svg = renderRows(score, [[0, [0, 1, 2]], [1, [0, 1, 2]], [2, [0, 1, 2]]]);
   assert.deepEqual(spansIn(svg).map(span => [span.getAttribute("data-start-key"), span.getAttribute("data-end-key")]),
-    [["a1", "a2"], ["b0", "b2"], ["c0", "c1"]]);
-  assert.deepEqual(spansIn(renderRows(score, [[1, [0, 1, 2]]])).map(span => span.getAttribute("data-start-key")), ["b0"]);
+    [["a1", "a2:span-after"], ["b0:span-before", "b2:span-after"], ["c0:span-before", "c1"]]);
+  assert.deepEqual(spansIn(renderRows(score, [[1, [0, 1, 2]]])).map(span => span.getAttribute("data-start-key")), ["b0:span-before"]);
   assert.equal(spansIn(renderRows(score, [[2, [2]]])).length, 0, "row beyond span remains empty");
 });
 

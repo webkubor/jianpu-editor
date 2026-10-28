@@ -25,6 +25,7 @@ function validateNotation(value: unknown, keys: Set<string>): boolean {
   if (n.dynamic !== undefined && !["ppp", "pp", "p", "mp", "mf", "f", "ff"].includes(n.dynamic)) return false;
   if (n.octave !== undefined && !Number.isSafeInteger(n.octave)) return false;
   if (n.underline !== undefined && (!Number.isSafeInteger(n.underline) || n.underline < 0)) return false;
+  if (n.beamGroup !== undefined && (!Number.isSafeInteger(n.beamGroup) || n.beamGroup < 0)) return false;
   if (n.beatFrac !== undefined && !(typeof n.beatFrac === "number" && Number.isFinite(n.beatFrac) && n.beatFrac > 0)) return false;
   if (n.prefixAccidentals !== undefined && (!Array.isArray(n.prefixAccidentals) ||
     !n.prefixAccidentals.every((value: unknown) => value === "♯" || value === "♭"))) return false;
@@ -52,6 +53,7 @@ function deserializeNotation(n: Partial<Notation>): Notation {
     dotted: Boolean(n.dotted),
     underline: Number(n.underline) || 0,
     breakUnderline: Boolean(n.breakUnderline),
+    ...(n.beamGroup !== undefined ? { beamGroup: n.beamGroup } : {}),
     prefixAccidentals: Array.isArray(n.prefixAccidentals) ? n.prefixAccidentals : [],
     topDecorators: Array.isArray(n.topDecorators) ? n.topDecorators : [],
     tieTo: n.tieTo ? String(n.tieTo) : null,

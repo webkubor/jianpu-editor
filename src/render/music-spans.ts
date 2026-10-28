@@ -11,6 +11,13 @@ export type MusicSpan = {
   endKey: string;
   /** 省略时使用默认标签；连音组空字符串表示无数字的续接括号。 */
   label?: string;
+  /**
+   * 仅渲染用：该段在行首被裁切，真实起点在前一行（省略等同 false）。
+   * 连音线/滑音在此端抬平离开行边；调用方须把该端锚点放在行边，模型本身不写这两个标志。
+   */
+  continuesLeft?: boolean;
+  /** 仅渲染用：该段在行尾被裁切，真实终点在下一行（省略等同 false）。 */
+  continuesRight?: boolean;
 };
 
 type Position = { x: number; top: number; bottom: number };
@@ -131,15 +138,28 @@ function draw(row: SVGGElement, span: MusicSpan, p: Placement): SVGGElement {
     "data-kind": span.kind, "data-start-key": span.startKey, "data-end-key": span.endKey,
   });
   const { start, end, top, bottom } = p;
+  // 续接端不落在字形底部而在拱高处水平进出，避免行边出现"落底小拱"的断口假象。
+  const continuesLeft = !!span.continuesLeft;
+  const continuesRight = !!span.continuesRight;
+  if (continuesLeft) group.setAttribute("data-continues-left", "true");
+  if (continuesRight) group.setAttribute("data-continues-right", "true");
   switch (span.kind) {
     case "slur":
     case "slide": {
       const inset = (end - start) / 4;
-      group.appendChild(path(row,
-        `M ${start} ${bottom} C ${start + inset} ${top} ${end - inset} ${top} ${end} ${bottom}`));
-      if (span.kind === "slide") {
+      // 两端皆续接（整行落在跨度中间）时是平浅直线，不画出无意义的拱。
+      if (continuesLeft && continuesRight) {
+        group.appendChild(path(row, `M ${start} ${top} L ${end} ${top}`));
+      } else {
+        group.appendChild(path(row,
+          `M ${start} ${continuesLeft ? top : bottom} C ${start + inset} ${top} ${end - inset} ${top}`
+          + ` ${end} ${continuesRight ? top : bottom}`));
+      }
+      // 箭头只标真实终点；被行边裁切的一侧没有可指示的音符。
+      if (span.kind === "slide" && !(p.forward ? continuesRight : continuesLeft)) {
         // 沿终点切线手绘箭头，不使用共享 defs/marker ID，也不推断音高方向。
         const tip = p.forward ? end : start;
+        const tipY = bottom;
         const dx = p.forward ? inset : -inset;
         const dy = bottom - top;
         const length = Math.hypot(dx, dy);
@@ -148,9 +168,9 @@ function draw(row: SVGGElement, span: MusicSpan, p: Placement): SVGGElement {
         const arrowLength = Math.min(ARROW_LENGTH, length / 2);
         const halfWidth = Math.min(ARROW_HALF_WIDTH, arrowLength / 2);
         const baseX = tip - ux * arrowLength;
-        const baseY = bottom - uy * arrowLength;
+        const baseY = tipY - uy * arrowLength;
         group.appendChild(path(row,
-          `M ${baseX - uy * halfWidth} ${baseY + ux * halfWidth} L ${tip} ${bottom}`
+          `M ${baseX - uy * halfWidth} ${baseY + ux * halfWidth} L ${tip} ${tipY}`
           + ` L ${baseX + uy * halfWidth} ${baseY - ux * halfWidth}`));
       }
       break;
