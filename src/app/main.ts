@@ -564,6 +564,24 @@ document.getElementById("export-wav")?.addEventListener("click", async () => {
   }
 });
 
+// 主题色为 oklch()，rsvg/Inkscape 等不支持，会让 currentColor 线条整体消失；导出前用画布取像素转成 sRGB。
+const srgbCache = new Map<string, string>();
+function toSrgb(value: string): string {
+  if (!/oklch|oklab|lab\(|lch\(|color\(/.test(value)) return value;
+  const hit = srgbCache.get(value);
+  if (hit) return hit;
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!ctx) return value;
+  ctx.canvas.width = ctx.canvas.height = 1;
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = value;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  const rgb = a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(3)})`;
+  srgbCache.set(value, rgb);
+  return rgb;
+}
+
 /** 导出复用预览分页，纵向拼接；固化计算样式，避免独立 SVG 丢失字体和主题变量。 */
 function renderExportSvg(): SVGSVGElement {
   const pages = renderScorePagesSvgs(state.score, null);
@@ -598,7 +616,8 @@ function renderExportSvg(): SVGSVGElement {
         const style = getComputedStyle(node);
         for (const property of ["color", "fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity",
           "font-family", "font-size", "font-weight", "font-style", "letter-spacing", "text-anchor", "dominant-baseline"]) {
-          node.setAttribute(property, style.getPropertyValue(property));
+          const value = style.getPropertyValue(property);
+          node.setAttribute(property, ["color", "fill", "stroke"].includes(property) ? toSrgb(value) : value);
         }
       }
     }

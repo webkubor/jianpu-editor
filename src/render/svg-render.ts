@@ -622,9 +622,9 @@ export function renderPageSvg(
       beamGroups.set(group, entry);
     });
     beamGroups.forEach(({ indices, layers }) => {
-      if (indices.length < 2) return;
+      // 连排组跨视觉行时，本行只剩一音也必须保留其减时线。
       const widths = rowGlyphs.map(item => item.width);
-      const centerOf = (i: number) => A4_PAGE.marginLeft + rowCenterX(widths, i, flex);
+      const centerOf = (i: number) => A4_PAGE.marginLeft + rowCenterX(widths, i, flex) + noteGeometry(rowGlyphs[i].n).mainX;
       const half = (i: number) => noteGeometry(rowGlyphs[i].n).digitWidth / 2;
       for (let layer = 0; layer < layers; layer += 1) {
         const y = LAYOUT.underlineY0 + layer * LAYOUT.underlineStep;
