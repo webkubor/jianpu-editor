@@ -1,6 +1,6 @@
 /**
  * SVG 渲染器：把 Notation[] 排到 SVG 上
- * 原理（对 numerical-notation-editor placement 的重写）：
+ * 原理（参考 numerical-notation-editor 的 placement 后独立实现）：
  * - 不用音符字体，全部 SVG text/circle/line：数字为主体，八度点/附点是小圆，
  *   减时线是横线（小节内连续同层音符连成一条）。
  * - 文本宽度用 canvas measureText 离屏测量。

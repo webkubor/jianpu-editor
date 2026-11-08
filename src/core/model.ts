@@ -1,6 +1,6 @@
 /**
  * 简谱数据模型：一切皆符号（notation）的扁平结构
- * 原理来源：对 numerical-notation-editor（GPL-3.0）的数据模型逆向重写，未复制代码。
+ * 原理来源：参考 numerical-notation-editor（GPL-3.0）的数据模型思路后独立实现，未复制其代码。
  * 音符、休止符、小节线、延音线统一为 Notation 节点，段落 = 有序符号数组。
  */
 

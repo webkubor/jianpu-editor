@@ -1,6 +1,6 @@
 /**
  * 转调模块
- * 原理（对 numerical-notation-editor tone-convert 的独立重写）：
+ * 原理（参考 numerical-notation-editor 的 tone-convert 后独立实现）：
  * 简谱是首调记谱，转调 = 全体音符的音级（semitone level）平移。
  * 音级映射：1=C(0) 2=D(2) 3=E(4) 4=F(5) 5=G(7) 6=A(9) 7=B(11)。
  * 平移后落不在白键上的音级，用 ♯/♭ 前缀表示（惯用记法：1♯ 2♯ 4♯ 5♯ 6♯，3♭ 7♭ 取 ♭）。

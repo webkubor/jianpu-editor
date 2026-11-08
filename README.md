@@ -1,6 +1,32 @@
 # jianpu-editor
 
-丝滑的网页简谱（numbered musical notation）编辑器。逆向 [numerical-notation-editor](https://github.com/mattuylee/numerical-notation-editor) 的排版原理后全部重写（零运行时依赖：Vite + TypeScript）。
+丝滑的网页简谱（numbered musical notation）编辑器。
+
+在线体验：https://jianpu.webkubor.online/
+
+## 技术栈
+
+**不使用任何前端框架，也没有组件库。**
+
+- **构建工具**：Vite 6（仅构建期；产物无任何框架运行时）
+- **语言**：TypeScript 5（strict 模式，构建时 `tsc --noEmit` 全量类型检查）
+- **UI 层**：原生 DOM。`index.html` 手写完整界面骨架（约 540 行静态 DOM），`src/app/main.ts` 用 `getElementById` 直接绑定；**没有 React / Vue / Svelte，没有虚拟 DOM，没有组件树**
+- **渲染层**：自研 SVG 排版引擎（`src/render/`）——数字 + 圆点 + 横线直接画成 SVG 元素，不用音符字体，canvas `measureText` 离屏测宽、段落两端对齐、超宽自动按小节换行
+- **音频层**：自研 Web Audio 合成器（`src/core/player.ts`）——正弦 + 泛音物理合成，零音频库
+- **运行时依赖**：**0 个**（`dependencies` 为空；`devDependencies` 仅 vite / typescript / @types/node，全部只用于构建和测试）
+- **测试**：Node.js 内置 test runner（`node --test`），195 个测试覆盖核心逻辑，零测试框架依赖
+
+为什么不用框架：本项目是**排版引擎 + 物理回放**，核心是纯计算（`src/core/`）与 SVG 生成（`src/render/`），这两层不需要框架；UI 交互（键盘、工具栏、对话框）用原生 DOM 事件已足够，且换来零运行时开销与极小产物体积（gzip 后 ~46KB）。
+
+> **已知取舍（v0.2 计划）**：当前 UI 层（`src/app/`，约 1500 行）是手动状态-DOM 同步——67 处 `getElementById`/`addEventListener`、大量手动 `classList`/`textContent` 更新。状态交叉多的场景（播放高亮、卡拉OK 歌词、撤销栈）维护成本会随功能增长。v0.2 计划将 **UI 层迁移到 Vue 3**（`src/core/` 计算层与 `src/render/` 排版引擎保持不变，它们不依赖 DOM 框架），以获得声明式状态绑定。迁移前先发布当前可用版本。
+
+## 许可与来源
+
+本项目基于 GPL-3.0 发布。
+
+排版思路参考了 [numerical-notation-editor](https://github.com/mattuylee/numerical-notation-editor)（同为 GPL-3.0），
+数据模型、音符排布与转调规则为独立实现。作为 GPL-3.0 衍生作品，本仓库同样以 GPL-3.0 发布，
+并保留此来源声明。
 
 ## 核心思路
 
