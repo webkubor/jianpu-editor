@@ -16,17 +16,13 @@
 - **运行时依赖**：**0 个**（`dependencies` 为空；`devDependencies` 仅 vite / typescript / @types/node，全部只用于构建和测试）
 - **测试**：Node.js 内置 test runner（`node --test`），195 个测试覆盖核心逻辑，零测试框架依赖
 
-为什么不用框架：本项目是**排版引擎 + 物理回放**，核心是纯计算（`src/core/`）与 SVG 生成（`src/render/`），这两层不需要框架；UI 交互（键盘、工具栏、对话框）用原生 DOM 事件已足够，且换来零运行时开销与极小产物体积（gzip 后 ~46KB）。
-
 > **已知取舍（v0.2 计划）**：当前 UI 层（`src/app/`，约 1500 行）是手动状态-DOM 同步——67 处 `getElementById`/`addEventListener`、大量手动 `classList`/`textContent` 更新。状态交叉多的场景（播放高亮、卡拉OK 歌词、撤销栈）维护成本会随功能增长。v0.2 计划将 **UI 层迁移到 Vue 3**（`src/core/` 计算层与 `src/render/` 排版引擎保持不变，它们不依赖 DOM 框架），以获得声明式状态绑定。迁移前先发布当前可用版本。
 
 ## 许可与来源
 
 本项目基于 GPL-3.0 发布。
 
-排版思路参考了 [numerical-notation-editor](https://github.com/mattuylee/numerical-notation-editor)（同为 GPL-3.0），
-数据模型、音符排布与转调规则为独立实现。作为 GPL-3.0 衍生作品，本仓库同样以 GPL-3.0 发布，
-并保留此来源声明。
+排版思路参考了 [numerical-notation-editor](https://github.com/mattuylee/numerical-notation-editor)（GPL-3.0）；数据模型、音符排布与转调规则的实现见本仓库源码。
 
 ## 核心思路
 

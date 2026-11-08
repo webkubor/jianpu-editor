@@ -1,7 +1,7 @@
 {
   "name": "jianpu-editor",
   "version": "0.1.0",
-  "private": false,
+  "private": true,
   "type": "module",
   "description": "丝滑的网页简谱（numbered musical notation）编辑器：SVG 纯文本排版、Web Audio 回放、MIDI 导入导出与 WAV 导出。",
   "scripts": {
